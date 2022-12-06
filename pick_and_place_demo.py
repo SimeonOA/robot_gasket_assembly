@@ -60,12 +60,14 @@ def take_action(pick, place):
     #grasp = g.single_grasp(pick,.007,iface.R_TCP)
     # g.col_interface.visualize_grasps([grasp.pose],iface.R_TCP)
     #wrist = grasp.pose*iface.R_TCP.inverse()
-    print("grabbing with right arm")
+    print("grabbing with left arm")
     #r_grasp=grasp
     #r_grasp.pose.from_frame=YK.r_tcp_frame
     #iface.grasp(l_grasp=l_grasp,r_grasp=r_grasp)
     iface.go_cartesian(l_targets=[RigidTransform(translation=pick, rotation=Interface.GRIP_DOWN_R,
-        from_frame = YK.l_tcp_frame, to_frame = 'base_link')], nwiggles=(10,10),rot=(.0,.0))
+      from_frame = YK.l_tcp_frame, to_frame = 'base_link')], nwiggles=(10,10),rot=(.0,.0))
+    # iface.go_cartesian(r_targets=[RigidTransform(translation=pick, rotation=Interface.GRIP_DOWN_R,
+    #     from_frame = YK.r_tcp_frame, to_frame = 'base_link')], nwiggles=(10,10),rot=(.0,.0))
     iface.set_speed((.25,5))
     iface.close_grippers()
     time.sleep(3)
@@ -98,7 +100,7 @@ while True:
     pixel_c = 0
     points_3d = iface.cam.intrinsics.deproject(img.depth)
     lower = 20
-    upper = 90.0
+    upper = 150
     delete_later = []
     #print(three_mat_color[635][231][0])
     #print(three_mat_color[635][231][1])
@@ -108,8 +110,11 @@ while True:
             if(three_mat_color[r][c][0] == 255 and three_mat_color[r][c][1] == 255 and three_mat_color[r][c][2] == 255):
                 pixel_r = r
                 pixel_c = c
-            if(lower < (three_mat_color[r][c][0] + three_mat_color[r][c][1] + three_mat_color[r][c][2])/3 < upper):
+            
+            if(lower <  three_mat_color[r][c][1] < upper):
                 delete_later += [(c,r)]
+            #if(c == 500):
+            #    print("X: " + str(c)+" Y: "+str(r)+" R: "+str(three_mat_color[r][c][0]) + " G: "+str(three_mat_color[r][c][1]) + " B:" +str(three_mat_color[r][c][2]) + " AVG: ")
     loc = (pixel_c,pixel_r)
     #print(loc)
     #print(delete_later)
@@ -123,32 +128,26 @@ while True:
     transformed_rope_cloud = new_transf.apply(rope_cloud)
     di = iface.cam.intrinsics.project_to_image(transformed_rope_cloud, round_px = False)
 
-    di.save("edge_detection.png")
+    
     
     di_data = di._image_data()
-    #print(di_data)
-    
-    # for r in range(len(di_data)):
-    #    for c  in range(len(di_data[r])):
-    #        for delete in delete_later:
-    #            if(r == delete[1] and c == delete[0]):
-    #                 #print("X: "+str(c) +" Y: "+str(r)+ " DEPTH: " + str(di_data[r][c]))
-    #                di_data[r][c] = [0,0,0]
-
-    # for delete in delete_later:
-    #     #print(di_data[delete[1]][delete[0]])
-    #     #print(di_data[delete[1]][delete[0]])
-    #     di_data[delete[1]][delete[0]] = [0,0,0]
-    #di_image = iface.cam.intrinsics.deproject_to_image(di)
-    #plt.imshow(di_data, interpolation="nearest")
+    for delete in delete_later:
+         di_data[delete[1]][delete[0]] = [float(0),float(0),float(0)]
+    new_di_data = np.zeros((len(di_data),len(di_data[0])))
+    for r in range(len(new_di_data)):
+        for c in range(len(new_di_data[r])):
+            new_di_data[r][c] = di_data[r][c][0] # This actually changes the depth data so, use di_data if you need the depth
+    new_di = DepthImage(new_di_data.astype(np.float32), frame=di.frame)
+    new_di.save("edge_detection_t.png")
+    plt.imshow(new_di._image_data(), interpolation="nearest")
     #fig2 = plt.figure()
-    plt.imshow(di_data, interpolation="nearest")
-    plt.show()
+    # plt.imshow(di_data, interpolation="nearest")
+    # plt.show()
     
     #----------------------Find end of rope
 
 
-    q = input("EXIT OUT \n")
+    #q = input("EXIT OUT \n")
     #NEW ---------------------------------------------------------------------------------
     pick,place=click_points(img) #left is pick point, right is place point
     # VAINAVI: will need to observe and crop image most likely
@@ -166,7 +165,7 @@ while True:
     points_3d = iface.cam.intrinsics.deproject(img.depth)
     point=iface.T_PHOXI_BASE*points_3d[lin_ind]
     point = [p for p in point]
-    point[2] -= 0.05 # manually adjust height a tiny bit
+    point[2] -= 0.005 # manually adjust height a tiny bit
     place_point = iface.T_PHOXI_BASE*points_3d[lin_ind2]
 
     take_action(point, place_point)

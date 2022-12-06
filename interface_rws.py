@@ -49,7 +49,7 @@ class Interface:
         self.yk.set_tcp(self.L_TCP,self.R_TCP)
         self.set_speed(speed)
         #set up the phoxi
-        self.T_PHOXI_BASE = RigidTransform.load("../phoxipy/tools/phoxi_to_world_bww.tf").as_frames(from_frame="phoxi",to_frame="base_link")
+        self.T_PHOXI_BASE = RigidTransform.load("../phoxipy/tools/phoxi_to_world_etch.tf").as_frames(from_frame="phoxi",to_frame="base_link")
         self.cam = PhoXiSensor("1703005")
         self.cam.start()
         img=self.cam.read()
@@ -67,6 +67,7 @@ class Interface:
 
     def home(self):
         try:
+            print("here")
             self.go_config_plan(self.L_HOME_STATE,self.R_HOME_STATE)
         except PlanningException:
             self.go_configs([self.L_HOME_STATE],[self.R_HOME_STATE])
@@ -77,11 +78,11 @@ class Interface:
 
     def open_grippers(self):
         self.y.left.open_gripper()
-        self.y.right.open_gripper()
+        #self.y.right.open_gripper()
 
     def close_grippers(self):
         self.y.left.close_gripper()
-        self.y.right.close_gripper()
+        #self.y.right.close_gripper()
 
     #move robot to the given point
     def go_cartesian(self,l_targets=[],r_targets=[],fine=False,nwiggles=(None,None),rot=(None,None),

@@ -1,5 +1,5 @@
 #from ../../cable_untangling.interface_rws import Interface
-from autolab_core import RigidTransform,RgbdImage,DepthImage,ColorImage
+from autolab_core import RigidTransform,RgbdImage,DepthImage,ColorImage, CameraIntrinsics
 import numpy as np
 import matplotlib.pyplot as plt
 #from ../../cable_untangling.tcps import *
@@ -84,12 +84,72 @@ def take_action(pick, place):
 while True:
     q = input("Enter to home arms, anything else to quit\n")
     if not q=='':break
-    iface.home()
-    iface.open_grippers()
+    #iface.home()
+    #iface.open_grippers()
     iface.sync()
     #set up a simple interface for clicking on a point in the image
     img=iface.take_image()
+    #print(iface.T_PHOXI_BASE)
     g = GraspSelector(img,iface.cam.intrinsics,iface.T_PHOXI_BASE)
+    #NEW --------------------------------------------------------------------------------
+    #----------------------Find brightest pixel for segment_cable
+    three_mat_color = img.color.data
+    pixel_r = 0
+    pixel_c = 0
+    points_3d = iface.cam.intrinsics.deproject(img.depth)
+    lower = 20
+    upper = 90.0
+    delete_later = []
+    #print(three_mat_color[635][231][0])
+    #print(three_mat_color[635][231][1])
+    #print(three_mat_color[635][231][2])
+    for r in range(len(three_mat_color)):
+        for c  in range(len(three_mat_color[r])):
+            if(three_mat_color[r][c][0] == 255 and three_mat_color[r][c][1] == 255 and three_mat_color[r][c][2] == 255):
+                pixel_r = r
+                pixel_c = c
+            if(lower < (three_mat_color[r][c][0] + three_mat_color[r][c][1] + three_mat_color[r][c][2])/3 < upper):
+                delete_later += [(c,r)]
+    loc = (pixel_c,pixel_r)
+    #print(loc)
+    #print(delete_later)
+    #print(delete_later)
+    #----------------------Segment
+    rope_cloud,_ = g.segment_cable(loc)
+    #print(rope_cloud.data)
+    #----------------------Remove block
+
+    new_transf = iface.T_PHOXI_BASE.inverse()
+    transformed_rope_cloud = new_transf.apply(rope_cloud)
+    di = iface.cam.intrinsics.project_to_image(transformed_rope_cloud, round_px = False)
+
+    di.save("edge_detection.png")
+    
+    di_data = di._image_data()
+    #print(di_data)
+    
+    # for r in range(len(di_data)):
+    #    for c  in range(len(di_data[r])):
+    #        for delete in delete_later:
+    #            if(r == delete[1] and c == delete[0]):
+    #                 #print("X: "+str(c) +" Y: "+str(r)+ " DEPTH: " + str(di_data[r][c]))
+    #                di_data[r][c] = [0,0,0]
+
+    # for delete in delete_later:
+    #     #print(di_data[delete[1]][delete[0]])
+    #     #print(di_data[delete[1]][delete[0]])
+    #     di_data[delete[1]][delete[0]] = [0,0,0]
+    #di_image = iface.cam.intrinsics.deproject_to_image(di)
+    #plt.imshow(di_data, interpolation="nearest")
+    #fig2 = plt.figure()
+    plt.imshow(di_data, interpolation="nearest")
+    plt.show()
+    
+    #----------------------Find end of rope
+
+
+    q = input("EXIT OUT \n")
+    #NEW ---------------------------------------------------------------------------------
     pick,place=click_points(img) #left is pick point, right is place point
     # VAINAVI: will need to observe and crop image most likely
     #action = policy.get_action(img.color._data)

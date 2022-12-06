@@ -257,9 +257,11 @@ class GraspSelector:
         closepts=[]
         visited=set()
         start_point=self.ij_to_point(loc).data
-        RADIUS2 = .01**2#distance from original point before termination
+        #RADIUS2 = .01**2#distance from original point before termination
+        RADIUS2 = 1#distance from original point before termination
         CLOSE2 = .002**2
-        DELTA = .00075#if the depth changes by this much, stop floodfill
+        #DELTA = .00075#if the depth changes by this much, stop floodfill
+        DELTA = .0007
         NEIGHS = [(-1,0),(1,0),(0,1),(0,-1)]
         #carry out floodfill
         while len(q)>0:
@@ -282,7 +284,7 @@ class GraspSelector:
                 test_pt = self.ij_to_point(test_loc).data
                 if(abs(test_pt[2]-next_point[2])<DELTA):
                     q.append(test_loc)
-        return PointCloud(np.array(pts).T),PointCloud(np.array(closepts).T).mean()
+        return PointCloud(np.array(pts).T,"base_link"),PointCloud(np.array(closepts).T,"base_link").mean()
 
     def ij_to_point(self,loc):
         lin_ind = self.depth.width*loc[1]+loc[0]

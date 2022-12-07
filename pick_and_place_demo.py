@@ -86,10 +86,10 @@ def take_action(pick, place):
 
 #policy = CornerPullingBCPolicy()
 while True:
-    #q = input("Enter to home arms, anything else to quit\n")
-    #if not q=='':break
-    #iface.home()
-    #iface.open_grippers()
+    q = input("Enter to home arms, anything else to quit\n")
+    if not q=='':break
+    iface.home()
+    iface.open_grippers()
     iface.sync()
     #set up a simple interface for clicking on a point in the image
     img=iface.take_image()
@@ -185,14 +185,13 @@ while True:
                     new_di_data[r][c]=0.0
 
     new_di = DepthImage(new_di_data.astype(np.float32), frame=di.frame)
-    plt.imshow(new_di._image_data(), interpolation="nearest")
-    plt.show()
+    #plt.imshow(new_di._image_data(), interpolation="nearest")
+    #plt.show()
     #plt.savefig("Isolated_Cable")
-    
-    new_di.save("Isolated_Cable.png")
+    #new_di.save("Isolated_Cable.png")
+
     new_di_data = gaussian_filter(new_di_data, sigma=1)
-    
-    
+
     for r in range(len(new_di_data)):
         for c in range(len(new_di_data[r])):
             if(new_di_data[r][c] != 0):
@@ -242,13 +241,13 @@ while True:
                         #max_edges = curr_edges
                         min_locs+=[(c,r,curr_edges)]
                         min_loc = (c,r)
-        if(len(min_locs) <= 10):
+        if(1 < len(min_locs) <= 13):
             break
         else:
             min_locs = []
             max_edges +=1
-    print(min_locs)
-    print(min_loc)
+    #print(min_locs)
+    #print(min_loc)
     # REMOVE NOISE #
     for loc in min_locs:
         for add in range(1,2):
@@ -273,14 +272,15 @@ while True:
         if(curr_edges < 4):
             min_locs.remove(loc)
             print("removed "+str(loc))
-    
+    print("potential endpoints")        
+    print(min_locs)
     min_dist_to_center = 10000000 
     for loc in min_locs:
         dist = np.linalg.norm(np.array([loc[1]-400,loc[0]-450]))
         if dist<min_dist_to_center:
             min_dist_to_center=dist
             min_loc = loc
-    print(min_loc)
+    #print(min_loc)
     min_loc = (min_loc[0],min_loc[1])
     min_dist = 10000
     candidate_rope_loc = (0,0)
@@ -293,10 +293,10 @@ while True:
                     min_dist = dist
     min_loc = candidate_rope_loc
     print("FITTED POINT: " + str(min_loc))
-    plt.imshow(new_di_data, interpolation="nearest")
-    plt.show()
-    figure = plt.figure()
-    plt.savefig("Guassian_Post_Process.png")     
+    #plt.imshow(new_di_data, interpolation="nearest")
+    #plt.show()
+    #figure = plt.figure()
+    #plt.savefig("Guassian_Post_Process.png")     
     #new_di = DepthImage(new_di_data.astype(np.float32), frame=di.frame)
     #plt.imshow(new_di._image_data(), interpolation="nearest")
 
@@ -335,7 +335,7 @@ while True:
                 if(curr_edges > max_edges):
                     max_edges = curr_edges
                     channel_start = (c,r)
-    print(channel_start)
+    #print(channel_start)
     channel_cloud,_ = g.segment_channel(channel_start)
     transformed_channel_cloud = new_transf.apply(channel_cloud)
     image_channel = iface.cam.intrinsics.project_to_image(transformed_rope_cloud, round_px = False)
@@ -358,12 +358,12 @@ while True:
 
     #Finish Thresholding, now find corner to place
     max_edges = 0
-    potential_locations = []
+    best_location = ()
     for r in range(len(image_channel_data)):
         for c in range(len(image_channel_data[r])):
             if(image_channel_data[r][c][0] != 0 ):
                 curr_edges = 0
-                for add in range(1,4):
+                for add in range(1,5):
                     if(image_channel_data[min(len(new_di_data)-add, r+add)][c][0] == 0):
                         curr_edges += 1
                     if(image_channel_data[max(0, r-add)][c][0] == 0):
@@ -381,9 +381,47 @@ while True:
                     if(image_channel_data[max(0, r-add)][max(0, c-add)][0]  == 0):
                         curr_edges += 1
                 if(curr_edges > max_edges):
-                    potential_locations += [(c,r)]
+                    best_location = (c,r)
                     max_edges = curr_edges
-    print(potential_locations)
+    print(best_location)
+    dist_tolerance = 400
+    for r in range(len(image_channel_data)):
+        for c in range(len(image_channel_data[r])):
+            if(np.linalg.norm(np.array([r-best_location[1],c-best_location[0]])) < dist_tolerance):
+                image_channel_data[r][c] = 0
+    max_edges = 8
+    best_locations = []
+    for r in range(len(image_channel_data)):
+        for c in range(len(image_channel_data[r])):
+            if(image_channel_data[r][c][0] != 0 ):
+                curr_edges = 0
+                for add in range(1,3):
+                    if(image_channel_data[min(len(new_di_data)-add, r+add)][c][0] == 0):
+                        curr_edges += 1
+                    if(image_channel_data[max(0, r-add)][c][0] == 0):
+                        curr_edges += 1
+                    if(image_channel_data[r][min(len(new_di_data[0])-add, c+add)][0]  == 0):
+                        curr_edges += 1
+                    if(image_channel_data[r][max(0, c-add)][0]  == 0):
+                        curr_edges += 1
+                    if(image_channel_data[min(len(new_di_data)-add, r+add)][min(len(new_di_data[0])-add, c+add)][0]  == 0):
+                        curr_edges += 1
+                    if(image_channel_data[min(len(new_di_data)-add, r+add)][max(0, c-add)][0]  == 0):
+                        curr_edges += 1
+                    if(image_channel_data[max(0, r-add)][min(len(new_di_data[0])-add, c+add)][0]  == 0):
+                        curr_edges += 1
+                    if(image_channel_data[max(0, r-add)][max(0, c-add)][0]  == 0):
+                        curr_edges += 1
+                if(curr_edges > max_edges):
+                    best_locations += [(c,r)]
+                    #max_edges = curr_edges
+    print(best_locations)
+    min_dist = 0
+    for loc in best_locations:
+        if(np.linalg.norm(np.array([loc[1]-best_location[1],loc[0]-best_location[0]])) > min_dist):
+                min_dist = np.linalg.norm(np.array([loc[1]-best_location[1],loc[0]-best_location[0]]))
+                best_location = loc
+    print("CHANNEL PLACE: "+str(best_location))
     plt.imshow(image_channel_data, interpolation="nearest")
     plt.show()
     plt.savefig("Channel_Remove_Rope.png")
@@ -392,10 +430,11 @@ while True:
 
     #----------------------FIND END OF CHANNEL
 
-    q = input("EXIT OUT \n")
+    #q = input("EXIT OUT \n")
     #NEW ---------------------------------------------------------------------------------
-    pick,place=click_points(img) #left is pick point, right is place point
-    pick = min_locs
+    #pick,place=click_points(img) #left is pick point, right is place point
+    pick = min_loc
+    place = best_location
     #place = FILL IN HERE
     # VAINAVI: will need to observe and crop image most likely
     #action = policy.get_action(img.color._data)
@@ -412,7 +451,7 @@ while True:
     points_3d = iface.cam.intrinsics.deproject(img.depth)
     point=iface.T_PHOXI_BASE*points_3d[lin_ind]
     point = [p for p in point]
-    point[2] -= 0.005 # manually adjust height a tiny bit
+    #point[2] += 0.005 # manually adjust height a tiny bit
     place_point = iface.T_PHOXI_BASE*points_3d[lin_ind2]
 
     take_action(point, place_point)

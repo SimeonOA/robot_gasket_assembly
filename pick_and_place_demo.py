@@ -2,6 +2,7 @@
 from autolab_core import RigidTransform,RgbdImage,DepthImage,ColorImage, CameraIntrinsics
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit
 #from ../../cable_untangling.tcps import *
 #from ../../cable_untangling.grasp import Grasp,GraspSelector
 import time
@@ -12,6 +13,8 @@ sys.path.insert(0,cable)
 from interface_rws import Interface 
 from tcps import *
 from grasp import Grasp, GraspSelector
+from scipy.ndimage.filters import gaussian_filter
+from scipy import ndimage, misc
 
 behavior_cloning_path = os.path.dirname(os.path.abspath(__file__)) + "/../../multi-fidelity-behavior-cloning"
 sys.path.insert(0, behavior_cloning_path)
@@ -84,8 +87,8 @@ def take_action(pick, place):
 
 #policy = CornerPullingBCPolicy()
 while True:
-    q = input("Enter to home arms, anything else to quit\n")
-    if not q=='':break
+    #q = input("Enter to home arms, anything else to quit\n")
+    #if not q=='':break
     #iface.home()
     #iface.open_grippers()
     iface.sync()
@@ -99,8 +102,8 @@ while True:
     pixel_r = 0
     pixel_c = 0
     points_3d = iface.cam.intrinsics.deproject(img.depth)
-    lower = 20
-    upper = 150
+    lower = 0
+    upper = 220
     delete_later = []
     #print(three_mat_color[635][231][0])
     #print(three_mat_color[635][231][1])
@@ -133,13 +136,110 @@ while True:
     di_data = di._image_data()
     for delete in delete_later:
          di_data[delete[1]][delete[0]] = [float(0),float(0),float(0)]
+    
+    mask = np.zeros((len(di_data),len(di_data[0])))
+    loc_list = [loc]
+
+    # modified segment_cable code to build a mask for the cable
+
+    #pick the brightest rgb point in the depth image
+    #increment in each direction for it's neighbors looking to see if it meets the thresholded rgb value
+    # if not, continue 
+    # if yes set it's x,y position to the mask matrix with the value 1
+    # add that value to the visited list so that we don't go back to it again
+
+    
+    visited=set()
+    NEIGHS = [(-1,0),(1,0),(0,1),(0,-1)]
+    #carry out floodfill
+    print(loc)
+    count = 0
+    while len(loc_list)>0:
+        #print(loc_list)
+        next_loc = loc_list.pop()
+        if di_data[next_loc[1]][next_loc[0]][0] > 0:
+            #print(di_data[next_loc[1]][next_loc[0]][0])
+            mask[next_loc[1]][next_loc[0]] = 1.0
+            if(count%100000000 == 0):
+                x_check = []
+                y_check = []
+                for r in range(len(di_data)):
+                    for c in range(len(di_data[r])):
+                        if(mask[r][c] == 1):
+                            x_check += [c]
+                            y_check += [r]
+                x_check = np.asarray(x_check)
+                y_check = np.asarray(y_check)
+                plt.plot(x_check, y_check, 'o', label='data')
+                plt.show()
+            count +=1
+
+        visited.add(next_loc)
+        for n in NEIGHS:
+            test_loc = (next_loc[0]+n[0],next_loc[1]+n[1])
+            if test_loc[0] > mask.shape[1]-1 or test_loc[0] < 0 or test_loc[1] > mask.shape[0]-1 or test_loc[1] < 0:
+                continue 
+            if(test_loc in visited):
+                continue
+            #if(di_data[test_loc[1]][test_loc[0]][0] == 0):
+            #    continue
+            loc_list.append(test_loc)
+        #next_point = self.ij_to_point(next_loc).data
+        #add neighbors if they're within delta of current height
+    #plt.matshow(mask)
+    #plt.show()
+    x_check = []
+    y_check = []
+    for r in range(len(di_data)):
+        for c in range(len(di_data[r])):
+            if(mask[r][c] == 1):
+                x_check += [c]
+                y_check += [r]
+                x_check = np.asarray(x_check)
+                y_check = np.asarray(y_check)
+    plt.plot(x_check, y_check, 'o', label='data')
+    plt.show()
+    
+    
+
+
+
+    #mask = np.ones((len(di_data),len(di_data[0])))
     new_di_data = np.zeros((len(di_data),len(di_data[0])))
+    xdata = []
+    ydata = []
+
     for r in range(len(new_di_data)):
         for c in range(len(new_di_data[r])):
-            new_di_data[r][c] = di_data[r][c][0] # This actually changes the depth data so, use di_data if you need the depth
+            #if(mask[r][c] == 1):
+            #    new_di_data[r][c] = di_data[r][c][0] # This actually changes the depth data so, use di_data if you need the depth
+            new_di_data[r][c] = di_data[r][c][0]
+            if (new_di_data[r][c] > 0):
+                xdata += [c]
+                ydata += [r]
+    #____________________FLOODFILL TO FIND ENDPOINTS________________________
+    
+    #______________________________________________________________________
     new_di = DepthImage(new_di_data.astype(np.float32), frame=di.frame)
-    new_di.save("edge_detection_t.png")
     plt.imshow(new_di._image_data(), interpolation="nearest")
+
+    def Gauss(x, a, b,c,d):
+        y = a*x**3 + b*x**2 + c*x + d
+        return y
+    xdata = np.asarray(xdata)
+    ydata = np.asarray(ydata)
+    parameters, covariance = curve_fit(Gauss, xdata, ydata)
+    fit_A = parameters[0]
+    fit_B = parameters[1]
+    fit_c = parameters[2]
+    fit_d = parameters[3]
+    fit_y = Gauss(xdata, fit_A, fit_B, fit_c, fit_d)
+    #plt.plot(xdata, ydata, 'o', label='data')
+    #plt.plot(xdata, fit_y, '-', label='fit')
+    #plt.legend()
+
+    #new_di.save("edge_detection_t.png")
+    
     #fig2 = plt.figure()
     # plt.imshow(di_data, interpolation="nearest")
     # plt.show()

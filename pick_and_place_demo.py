@@ -102,11 +102,8 @@ while True:
     pixel_c = 0
     points_3d = iface.cam.intrinsics.deproject(img.depth)
     lower = 0
-    upper = 200
+    upper = 215
     delete_later = []
-    #print(three_mat_color[635][231][0])
-    #print(three_mat_color[635][231][1])
-    #print(three_mat_color[635][231][2])
     for r in range(len(three_mat_color)):
         for c  in range(len(three_mat_color[r])):
             if(three_mat_color[r][c][0] == 255 and three_mat_color[r][c][1] == 255 and three_mat_color[r][c][2] == 255):
@@ -147,62 +144,6 @@ while True:
     # if yes set it's x,y position to the mask matrix with the value 1
     # add that value to the visited list so that we don't go back to it again
 
-    """
-    visited=set()
-    NEIGHS = [(-1,0),(1,0),(0,1),(0,-1)]
-    #carry out floodfill
-    print(loc)
-    count = 0
-    while len(loc_list)>0:
-        #print(loc_list)
-        next_loc = loc_list.pop()
-        if di_data[next_loc[1]][next_loc[0]][0] > 0:
-            #print(di_data[next_loc[1]][next_loc[0]][0])
-            mask[next_loc[1]][next_loc[0]] = 1.0
-            if(count%100000000 == 0):
-                x_check = []
-                y_check = []
-                for r in range(len(di_data)):
-                    for c in range(len(di_data[r])):
-                        if(mask[r][c] == 1):
-                            x_check += [c]
-                            y_check += [r]
-                x_check = np.asarray(x_check)
-                y_check = np.asarray(y_check)
-                plt.plot(x_check, y_check, 'o', label='data')
-                plt.show()
-            count +=1
-
-        visited.add(next_loc)
-        for n in NEIGHS:
-            test_loc = (next_loc[0]+n[0],next_loc[1]+n[1])
-            if test_loc[0] > mask.shape[1]-1 or test_loc[0] < 0 or test_loc[1] > mask.shape[0]-1 or test_loc[1] < 0:
-                continue 
-            if(test_loc in visited):
-                continue
-            #if(di_data[test_loc[1]][test_loc[0]][0] == 0):
-            #    continue
-            loc_list.append(test_loc)
-        #next_point = self.ij_to_point(next_loc).data
-        #add neighbors if they're within delta of current height
-    #plt.matshow(mask)
-    #plt.show()
-    x_check = []
-    y_check = []
-    for r in range(len(di_data)):
-        for c in range(len(di_data[r])):
-            if(mask[r][c] == 1):
-                x_check += [c]
-                y_check += [r]
-                x_check = np.asarray(x_check)
-                y_check = np.asarray(y_check)
-    plt.plot(x_check, y_check, 'o', label='data')
-    plt.show()
-    """
-    #____________________FLOODFILL TO FIND ENDPOINTS________________________
-
-    #______________________________________________________________________
-
 
 
     #mask = np.ones((len(di_data),len(di_data[0])))
@@ -218,85 +159,244 @@ while True:
             if (new_di_data[r][c] > 0):
                 xdata += [c]
                 ydata += [r]
-    
-    new_di = DepthImage(new_di_data.astype(np.float32), frame=di.frame)
-    plt.imshow(new_di._image_data(), interpolation="nearest")
-    
-    new_di_data = gaussian_filter(new_di_data, sigma=1)
-    
-    for r in range(len(new_di_data)):
-        for c in range(len(new_di_data[r])):
-            if(new_di_data[r][c] != 0):
-                new_di_data[r][c] = 255
-    new_di_data = gaussian_filter(new_di_data, sigma=1)
-    for r in range(len(new_di_data)):
-        for c in range(len(new_di_data[r])):
-            if(new_di_data[r][c] != 0):
-                new_di_data[r][c] = 255
-    new_di_data = gaussian_filter(new_di_data, sigma=1)
-    
-    print(new_di_data)
-    min_locs = []
-    min_loc = (0,0)
-    max_edges = 0
+
     for r in range(len(new_di_data)):
         for c in range(len(new_di_data[r])):
             if(new_di_data[r][c]!= 0):
                 curr_edges = 0
-                for add in range(1,4):
-                    if(new_di_data[min(len(new_di_data)-add, r+add)][c] == 0):
+                for add in range(1,2):
+                    if(new_di_data[min(len(new_di_data)-add, r+add)][c] != 0):
                         curr_edges += 1
-                    if(new_di_data[max(0, r-add)][c] == 0):
+                    if(new_di_data[max(0, r-add)][c] != 0):
                         curr_edges += 1
-                    if(new_di_data[r][min(len(new_di_data[0])-add, c+add)] == 0):
+                    if(new_di_data[r][min(len(new_di_data[0])-add, c+add)] != 0):
                         curr_edges += 1
-                    if(new_di_data[r][max(0, c-add)] == 0):
+                    if(new_di_data[r][max(0, c-add)] != 0):
                         curr_edges += 1
-                    if(new_di_data[min(len(new_di_data)-add, r+add)][min(len(new_di_data[0])-add, c+add)] == 0):
+                    if(new_di_data[min(len(new_di_data)-add, r+add)][min(len(new_di_data[0])-add, c+add)] != 0):
                         curr_edges += 1
-                    if(new_di_data[min(len(new_di_data)-add, r+add)][max(0, c-add)] == 0):
+                    if(new_di_data[min(len(new_di_data)-add, r+add)][max(0, c-add)] != 0):
                         curr_edges += 1
-                    if(new_di_data[max(0, r-add)][min(len(new_di_data[0])-add, c+add)] == 0):
+                    if(new_di_data[max(0, r-add)][min(len(new_di_data[0])-add, c+add)] != 0):
                         curr_edges += 1
-                    if(new_di_data[max(0, r-add)][max(0, c-add)] == 0):
+                    if(new_di_data[max(0, r-add)][max(0, c-add)] != 0):
                         curr_edges += 1
-                if(curr_edges > max_edges):
-                    max_edges = curr_edges
-                    min_locs+=[(c,r)]
-                    min_loc = (c,r)
-                    print(curr_edges)
-    print(min_locs)
-    print(min_loc)
+                if(curr_edges < 4):
+                    new_di_data[r][c]=0.0
+
     new_di = DepthImage(new_di_data.astype(np.float32), frame=di.frame)
     plt.imshow(new_di._image_data(), interpolation="nearest")
+    plt.show()
+    #plt.savefig("Isolated_Cable")
+    
+    new_di.save("Isolated_Cable.png")
+    new_di_data = gaussian_filter(new_di_data, sigma=1)
+    
+    
+    for r in range(len(new_di_data)):
+        for c in range(len(new_di_data[r])):
+            if(new_di_data[r][c] != 0):
+                new_di_data[r][c] = 255
+    new_di_data = gaussian_filter(new_di_data, sigma=1)
+    
+    for r in range(len(new_di_data)):
+        for c in range(len(new_di_data[r])):
+            if(new_di_data[r][c] != 0):
+                new_di_data[r][c] = 255
+    new_di_data = gaussian_filter(new_di_data, sigma=1)
 
-    def Gauss(x, a, b,c,d):
-        y = a*x**3 + b*x**2 + c*x + d
-        return y
-    xdata = np.asarray(xdata)
-    ydata = np.asarray(ydata)
-    parameters, covariance = curve_fit(Gauss, xdata, ydata)
-    fit_A = parameters[0]
-    fit_B = parameters[1]
-    fit_c = parameters[2]
-    fit_d = parameters[3]
-    fit_y = Gauss(xdata, fit_A, fit_B, fit_c, fit_d)
-    #plt.plot(xdata, ydata, 'o', label='data')
-    #plt.plot(xdata, fit_y, '-', label='fit')
-    #plt.legend()
+    for r in range(len(new_di_data)):
+        for c in range(len(new_di_data[r])):
+            if(new_di_data[r][c] != 0):
+                new_di_data[r][c] = 255
+    new_di_data = gaussian_filter(new_di_data, sigma=1)
+
+    
+
+    min_locs = []
+    min_loc = (0,0)
+    max_edges = 30
+    while(True):
+        for r in range(len(new_di_data)):
+            for c in range(len(new_di_data[r])):
+                if(new_di_data[r][c]!= 0):
+                    curr_edges = 0
+                    for add in range(1,8):
+                        if(new_di_data[min(len(new_di_data)-add, r+add)][c] == 0):
+                            curr_edges += 1
+                        if(new_di_data[max(0, r-add)][c] == 0):
+                            curr_edges += 1
+                        if(new_di_data[r][min(len(new_di_data[0])-add, c+add)] == 0):
+                            curr_edges += 1
+                        if(new_di_data[r][max(0, c-add)] == 0):
+                            curr_edges += 1
+                        if(new_di_data[min(len(new_di_data)-add, r+add)][min(len(new_di_data[0])-add, c+add)] == 0):
+                            curr_edges += 1
+                        if(new_di_data[min(len(new_di_data)-add, r+add)][max(0, c-add)] == 0):
+                            curr_edges += 1
+                        if(new_di_data[max(0, r-add)][min(len(new_di_data[0])-add, c+add)] == 0):
+                            curr_edges += 1
+                        if(new_di_data[max(0, r-add)][max(0, c-add)] == 0):
+                            curr_edges += 1
+                    if(curr_edges > max_edges):
+                        #max_edges = curr_edges
+                        min_locs+=[(c,r,curr_edges)]
+                        min_loc = (c,r)
+        if(len(min_locs) <= 10):
+            break
+        else:
+            min_locs = []
+            max_edges +=1
+    print(min_locs)
+    print(min_loc)
+    # REMOVE NOISE #
+    for loc in min_locs:
+        for add in range(1,2):
+            r = loc[1]
+            c = loc[0]
+            if(new_di_data[min(len(new_di_data)-add, r+add)][c] != 0):
+                curr_edges += 1
+            if(new_di_data[max(0, r-add)][c] != 0):
+                curr_edges += 1
+            if(new_di_data[r][min(len(new_di_data[0])-add, c+add)] != 0):
+                curr_edges += 1
+            if(new_di_data[r][max(0, c-add)] != 0):
+                curr_edges += 1
+            if(new_di_data[min(len(new_di_data)-add, r+add)][min(len(new_di_data[0])-add, c+add)] != 0):
+                curr_edges += 1
+            if(new_di_data[min(len(new_di_data)-add, r+add)][max(0, c-add)] != 0):
+                curr_edges += 1
+            if(new_di_data[max(0, r-add)][min(len(new_di_data[0])-add, c+add)] != 0):
+                curr_edges += 1
+            if(new_di_data[max(0, r-add)][max(0, c-add)] != 0):
+                curr_edges += 1
+        if(curr_edges < 4):
+            min_locs.remove(loc)
+            print("removed "+str(loc))
+    
+    min_dist_to_center = 10000000 
+    for loc in min_locs:
+        dist = np.linalg.norm(np.array([loc[1]-400,loc[0]-450]))
+        if dist<min_dist_to_center:
+            min_dist_to_center=dist
+            min_loc = loc
+    print(min_loc)
+    min_loc = (min_loc[0],min_loc[1])
+    min_dist = 10000
+    candidate_rope_loc = (0,0)
+    for r in range(len(new_di_data)):
+        for c in range(len(new_di_data[r])):
+            if(di_data[r][c][0] != 0):
+                dist = np.linalg.norm(np.array([r-min_loc[1],c-min_loc[0]]))
+                if (dist < min_dist):
+                    candidate_rope_loc = (c,r)
+                    min_dist = dist
+    min_loc = candidate_rope_loc
+    print("FITTED POINT: " + str(min_loc))
+    plt.imshow(new_di_data, interpolation="nearest")
+    plt.show()
+    figure = plt.figure()
+    plt.savefig("Guassian_Post_Process.png")     
+    #new_di = DepthImage(new_di_data.astype(np.float32), frame=di.frame)
+    #plt.imshow(new_di._image_data(), interpolation="nearest")
 
     #new_di.save("edge_detection_t.png")
     
     #fig2 = plt.figure()
-    # plt.imshow(di_data, interpolation="nearest")
-    # plt.show()
+    #print(min_loc)
     
-    #----------------------Find end of rope
+    #----------------------FIND END OF CHANNEL
+    lower = 80
+    upper = 90
+    channel_start = (0,0)
+    max_edges = 0
 
+    for r in range(len(three_mat_color)):
+        for c in range(len(three_mat_color[r])):
+            if(lower< three_mat_color[r][c][0]<upper):
+                curr_edges = 0
+                for add in range(1,5):
+                    if(lower < three_mat_color[min(len(three_mat_color)-add, r+add)][c][0] < upper):
+                        curr_edges += 1
+                    if(lower < three_mat_color[max(0, r-add)][c][0] < upper):
+                        curr_edges += 1
+                    if(lower < three_mat_color[r][min(len(three_mat_color[0])-add, c+add)][0] < upper):
+                        curr_edges += 1
+                    if(lower < three_mat_color[r][max(0, c-add)][0] < upper):
+                        curr_edges += 1
+                    if(lower < three_mat_color[min(len(new_di_data)-add, r+add)][min(len(new_di_data[0])-add, c+add)][0] < upper):
+                        curr_edges += 1
+                    if(lower < three_mat_color[min(len(new_di_data)-add, r+add)][max(0, c-add)][0] < upper):
+                        curr_edges += 1
+                    if(lower < three_mat_color[max(0, r-add)][min(len(new_di_data[0])-add, c+add)][0] < upper):
+                        curr_edges += 1
+                    if(lower < three_mat_color[max(0, r-add)][max(0, c-add)][0] < upper):
+                        curr_edges += 1
+                if(curr_edges > max_edges):
+                    max_edges = curr_edges
+                    channel_start = (c,r)
+    print(channel_start)
+    channel_cloud,_ = g.segment_channel(channel_start)
+    transformed_channel_cloud = new_transf.apply(channel_cloud)
+    image_channel = iface.cam.intrinsics.project_to_image(transformed_rope_cloud, round_px = False)
+    image_channel_data = image_channel._image_data()
+    
+    plt.imshow(image_channel_data, interpolation="nearest")
+    plt.show()
+    figure = plt.figure()
+    plt.savefig("Point_Cloud_Channel.png")
+    #Threshold pointcloud
+    lower = 80
+    upper = 255
+    
+    for r in range(len(image_channel_data)):
+        for c  in range(len(image_channel_data[r])):
+            if(new_di_data[r][c] != 0):
+                image_channel_data[r][c][0] = 0.0
+                image_channel_data[r][c][1] = 0.0
+                image_channel_data[r][c][2] = 0.0
 
-    #q = input("EXIT OUT \n")
+    #Finish Thresholding, now find corner to place
+    max_edges = 0
+    potential_locations = []
+    for r in range(len(image_channel_data)):
+        for c in range(len(image_channel_data[r])):
+            if(image_channel_data[r][c][0] != 0 ):
+                curr_edges = 0
+                for add in range(1,4):
+                    if(image_channel_data[min(len(new_di_data)-add, r+add)][c][0] == 0):
+                        curr_edges += 1
+                    if(image_channel_data[max(0, r-add)][c][0] == 0):
+                        curr_edges += 1
+                    if(image_channel_data[r][min(len(new_di_data[0])-add, c+add)][0]  == 0):
+                        curr_edges += 1
+                    if(image_channel_data[r][max(0, c-add)][0]  == 0):
+                        curr_edges += 1
+                    if(image_channel_data[min(len(new_di_data)-add, r+add)][min(len(new_di_data[0])-add, c+add)][0]  == 0):
+                        curr_edges += 1
+                    if(image_channel_data[min(len(new_di_data)-add, r+add)][max(0, c-add)][0]  == 0):
+                        curr_edges += 1
+                    if(image_channel_data[max(0, r-add)][min(len(new_di_data[0])-add, c+add)][0]  == 0):
+                        curr_edges += 1
+                    if(image_channel_data[max(0, r-add)][max(0, c-add)][0]  == 0):
+                        curr_edges += 1
+                if(curr_edges > max_edges):
+                    potential_locations += [(c,r)]
+                    max_edges = curr_edges
+    print(potential_locations)
+    plt.imshow(image_channel_data, interpolation="nearest")
+    plt.show()
+    plt.savefig("Channel_Remove_Rope.png")
+    plt.imshow(img.color.data, interpolation="nearest")
+    plt.show()
+
+    #----------------------FIND END OF CHANNEL
+
+    q = input("EXIT OUT \n")
     #NEW ---------------------------------------------------------------------------------
     pick,place=click_points(img) #left is pick point, right is place point
+    pick = min_locs
+    #place = FILL IN HERE
     # VAINAVI: will need to observe and crop image most likely
     #action = policy.get_action(img.color._data)
     #pick, place = act_to_kps(action)

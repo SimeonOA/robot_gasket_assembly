@@ -286,6 +286,45 @@ class GraspSelector:
                     q.append(test_loc)
         return PointCloud(np.array(pts).T,"base_link"),PointCloud(np.array(closepts).T,"base_link").mean()
 
+    def segment_channel(self,loc):
+        '''
+        returns a PointCloud corresponding to cable points along the provided location
+        inside the depth image
+        '''
+        q=[loc]
+        pts=[]
+        closepts=[]
+        visited=set()
+        start_point=self.ij_to_point(loc).data
+        #RADIUS2 = .01**2#distance from original point before termination
+        RADIUS2 = 1#distance from original point before termination
+        CLOSE2 = .002**2
+        #DELTA = .00075#if the depth changes by this much, stop floodfill
+        DELTA = 0.3
+        NEIGHS = [(-1,0),(1,0),(0,1),(0,-1)]
+        #carry out floodfill
+        while len(q)>0:
+            next_loc = q.pop()
+            next_point = self.ij_to_point(next_loc).data
+            visited.add(next_loc)
+            diff = start_point-next_point
+            dist = diff.dot(diff)
+            if(dist>RADIUS2):
+                continue
+            pts.append(next_point)
+            if(dist<CLOSE2):closepts.append(next_point)
+            #add neighbors if they're within delta of current height
+            for n in NEIGHS:
+                test_loc = (next_loc[0]+n[0],next_loc[1]+n[1])
+                if test_loc[0]>=self.depth.width or test_loc[0]<0 \
+                        or test_loc[1]>=self.depth.height or test_loc[1]<0:
+                    continue
+                if(test_loc in visited):continue
+                test_pt = self.ij_to_point(test_loc).data
+                if(abs(test_pt[2]-next_point[2])<DELTA):
+                    q.append(test_loc)
+        return PointCloud(np.array(pts).T,"base_link"),PointCloud(np.array(closepts).T,"base_link").mean()
+
     def ij_to_point(self,loc):
         lin_ind = self.depth.width*loc[1]+loc[0]
         return self.points_3d[lin_ind]

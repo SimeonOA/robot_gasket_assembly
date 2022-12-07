@@ -14,7 +14,6 @@ from interface_rws import Interface
 from tcps import *
 from grasp import Grasp, GraspSelector
 from scipy.ndimage.filters import gaussian_filter
-from scipy import ndimage, misc
 
 behavior_cloning_path = os.path.dirname(os.path.abspath(__file__)) + "/../../multi-fidelity-behavior-cloning"
 sys.path.insert(0, behavior_cloning_path)
@@ -103,7 +102,7 @@ while True:
     pixel_c = 0
     points_3d = iface.cam.intrinsics.deproject(img.depth)
     lower = 0
-    upper = 220
+    upper = 200
     delete_later = []
     #print(three_mat_color[635][231][0])
     #print(three_mat_color[635][231][1])
@@ -148,7 +147,7 @@ while True:
     # if yes set it's x,y position to the mask matrix with the value 1
     # add that value to the visited list so that we don't go back to it again
 
-    
+    """
     visited=set()
     NEIGHS = [(-1,0),(1,0),(0,1),(0,-1)]
     #carry out floodfill
@@ -199,8 +198,10 @@ while True:
                 y_check = np.asarray(y_check)
     plt.plot(x_check, y_check, 'o', label='data')
     plt.show()
-    
-    
+    """
+    #____________________FLOODFILL TO FIND ENDPOINTS________________________
+
+    #______________________________________________________________________
 
 
 
@@ -217,9 +218,55 @@ while True:
             if (new_di_data[r][c] > 0):
                 xdata += [c]
                 ydata += [r]
-    #____________________FLOODFILL TO FIND ENDPOINTS________________________
     
-    #______________________________________________________________________
+    new_di = DepthImage(new_di_data.astype(np.float32), frame=di.frame)
+    plt.imshow(new_di._image_data(), interpolation="nearest")
+    
+    new_di_data = gaussian_filter(new_di_data, sigma=1)
+    
+    for r in range(len(new_di_data)):
+        for c in range(len(new_di_data[r])):
+            if(new_di_data[r][c] != 0):
+                new_di_data[r][c] = 255
+    new_di_data = gaussian_filter(new_di_data, sigma=1)
+    for r in range(len(new_di_data)):
+        for c in range(len(new_di_data[r])):
+            if(new_di_data[r][c] != 0):
+                new_di_data[r][c] = 255
+    new_di_data = gaussian_filter(new_di_data, sigma=1)
+    
+    print(new_di_data)
+    min_locs = []
+    min_loc = (0,0)
+    max_edges = 0
+    for r in range(len(new_di_data)):
+        for c in range(len(new_di_data[r])):
+            if(new_di_data[r][c]!= 0):
+                curr_edges = 0
+                for add in range(1,4):
+                    if(new_di_data[min(len(new_di_data)-add, r+add)][c] == 0):
+                        curr_edges += 1
+                    if(new_di_data[max(0, r-add)][c] == 0):
+                        curr_edges += 1
+                    if(new_di_data[r][min(len(new_di_data[0])-add, c+add)] == 0):
+                        curr_edges += 1
+                    if(new_di_data[r][max(0, c-add)] == 0):
+                        curr_edges += 1
+                    if(new_di_data[min(len(new_di_data)-add, r+add)][min(len(new_di_data[0])-add, c+add)] == 0):
+                        curr_edges += 1
+                    if(new_di_data[min(len(new_di_data)-add, r+add)][max(0, c-add)] == 0):
+                        curr_edges += 1
+                    if(new_di_data[max(0, r-add)][min(len(new_di_data[0])-add, c+add)] == 0):
+                        curr_edges += 1
+                    if(new_di_data[max(0, r-add)][max(0, c-add)] == 0):
+                        curr_edges += 1
+                if(curr_edges > max_edges):
+                    max_edges = curr_edges
+                    min_locs+=[(c,r)]
+                    min_loc = (c,r)
+                    print(curr_edges)
+    print(min_locs)
+    print(min_loc)
     new_di = DepthImage(new_di_data.astype(np.float32), frame=di.frame)
     plt.imshow(new_di._image_data(), interpolation="nearest")
 

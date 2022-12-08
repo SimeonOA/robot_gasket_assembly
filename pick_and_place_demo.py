@@ -18,6 +18,7 @@ from grasp import Grasp, GraspSelector
 from scipy.ndimage.filters import gaussian_filter
 import cv2
 from push import push_action_endpoints
+from yumirws.yumi import YuMiArm, YuMi
 behavior_cloning_path = os.path.dirname(os.path.abspath(__file__)) + "/../../multi-fidelity-behavior-cloning"
 sys.path.insert(0, behavior_cloning_path)
 #from analysis import CornerPullingBCPolicy
@@ -72,6 +73,8 @@ def take_action(pick, place):
     #r_grasp.pose.from_frame=YK.r_tcp_frame
     #iface.grasp(l_grasp=l_grasp,r_grasp=r_grasp)
     iface.set_speed((.1,1))
+    #yumi_left = iface.y.left
+    #print(yumi_left.get_pose())
     iface.go_cartesian(l_targets=[RigidTransform(translation=pick, rotation=Interface.GRIP_DOWN_R,
       from_frame = YK.l_tcp_frame, to_frame = 'base_link')], nwiggles=(10,10),rot=(.0,.0))
     # iface.go_cartesian(r_targets=[RigidTransform(translation=pick, rotation=Interface.GRIP_DOWN_R,
@@ -356,153 +359,6 @@ while True:
     min_loc = candidate_rope_loc
     print("FITTED POINT: " + str(min_loc))
 
-    """
-    #TEST FILL METHOD
-    print(save_loc)
-    queue = []
-    queue += [save_loc]
-    curr_loc = (0,0)
-    dx = [-1, +1, 0, 0]
-    dy = [0, 0 , +1, -1]
-    rows = len(new_di_data)
-    cols = len(new_di_data[0])
-    visited = [[False]*cols for i in range(rows)]
-
-    potential_ends = []
-    while(queue):
-        curr_loc = queue.pop()
-        r = curr_loc[1]
-        c = curr_loc[0]
-        count = 0
-        for neighbor in range(0,4):
-                rr = r + dx[neighbor]
-                cc = c + dy[neighbor]
-                if (rr < 0 or cc < 0):
-                    continue
-                if (rr >= rows or cc >= cols):
-                    continue
-                if visited[rr][cc]:
-                    count+=1
-                    continue
-                if new_di_data[rr][cc] == 0:
-                    continue
-                queue.append((cc,rr))
-                visited[rr][cc] = True
-        if(count == 4):
-            potential_ends+= [curr_loc]       
-    potential_ends += [curr_loc]
-    print("POTENTIAL LOCS " +str(potential_ends))
-
-    #--------------------
-    
-    min_locs = []
-    min_loc = (0,0)
-    max_edges = 33
-    min_edges = 27
-    while(True):
-        for r in range(len(new_di_data)):
-            for c in range(len(new_di_data[r])):
-                if(new_di_data[r][c]!= 0):
-                    curr_edges = 0
-                    curr_white_edges = 0
-                    for add in range(1,9):
-                        if(new_di_data[min(len(new_di_data)-add, r+add)][c] == 0):
-                            curr_edges += 1
-                        else:
-                            curr_white_edges += 1
-                        if(new_di_data[max(0, r-add)][c] == 0):
-                            curr_edges += 1
-                        else:
-                            curr_white_edges += 1
-                        if(new_di_data[r][min(len(new_di_data[0])-add, c+add)] == 0):
-                            curr_edges += 1
-                        else:
-                            curr_white_edges += 1
-                        if(new_di_data[r][max(0, c-add)] == 0):
-                            curr_edges += 1
-                        else:
-                            curr_white_edges += 1
-                        if(new_di_data[min(len(new_di_data)-add, r+add)][min(len(new_di_data[0])-add, c+add)] == 0):
-                            curr_edges += 1
-                        else:
-                            curr_white_edges += 1
-                        if(new_di_data[min(len(new_di_data)-add, r+add)][max(0, c-add)] == 0):
-                            curr_edges += 1
-                        else:
-                            curr_white_edges += 1
-                        if(new_di_data[max(0, r-add)][min(len(new_di_data[0])-add, c+add)] == 0):
-                            curr_edges += 1
-                        else:
-                            curr_white_edges += 1
-                        if(new_di_data[max(0, r-add)][max(0, c-add)] == 0):
-                            curr_edges += 1
-                        else:
-                            curr_white_edges += 1
-                    #if(curr_white_edges < min_edges):
-                    #    print("removed "+str((c,r)))
-                    #    new_di_data[r][c] = 0.0
-                    if(curr_edges > max_edges):
-                        #max_edges = curr_edges
-                        min_locs+=[(c,r,curr_edges)]
-                        min_loc = (c,r)
-        print("DEBUG: "+str(max_edges) + str(min_locs))
-        if(len(min_locs) == 0):
-            min_locs = []
-            max_edges = 10
-        if(1 < len(min_locs) <= 100):
-            print("TEHIOPUHPIOSUHTGPIOUSADGFPOHGUSUGHSPOIDUPIOSUDUSDHGPSDGPIOSDGHPUDSHIUSHHDG")
-            break
-        else:
-            min_locs = []
-            max_edges +=1
-    #print(min_locs)
-    #print(min_loc)
-    # REMOVE NOISE #
-    for loc in min_locs:
-        for add in range(1,2):
-            r = loc[1]
-            c = loc[0]
-            if(new_di_data[min(len(new_di_data)-add, r+add)][c] != 0):
-                curr_edges += 1
-            if(new_di_data[max(0, r-add)][c] != 0):
-                curr_edges += 1
-            if(new_di_data[r][min(len(new_di_data[0])-add, c+add)] != 0):
-                curr_edges += 1
-            if(new_di_data[r][max(0, c-add)] != 0):
-                curr_edges += 1
-            if(new_di_data[min(len(new_di_data)-add, r+add)][min(len(new_di_data[0])-add, c+add)] != 0):
-                curr_edges += 1
-            if(new_di_data[min(len(new_di_data)-add, r+add)][max(0, c-add)] != 0):
-                curr_edges += 1
-            if(new_di_data[max(0, r-add)][min(len(new_di_data[0])-add, c+add)] != 0):
-                curr_edges += 1
-            if(new_di_data[max(0, r-add)][max(0, c-add)] != 0):
-                curr_edges += 1
-        if(curr_edges < 4):
-            min_locs.remove(loc)
-            print("removed "+str(loc))
-    print("potential endpoints")        
-    print(min_locs)
-    min_dist_to_center = 10000000 
-    for loc in min_locs:
-        dist = np.linalg.norm(np.array([loc[1]-400,loc[0]-450]))
-        if dist<min_dist_to_center:
-            min_dist_to_center=dist
-            min_loc = loc
-    #print(min_loc)
-    min_loc = (min_loc[0],min_loc[1])
-    min_dist = 10000
-    candidate_rope_loc = (0,0)
-    for r in range(len(new_di_data)):
-        for c in range(len(new_di_data[r])):
-            if(di_data[r][c][0] != 0):
-                dist = np.linalg.norm(np.array([r-min_loc[1],c-min_loc[0]]))
-                if (dist < min_dist):
-                    candidate_rope_loc = (c,r)
-                    min_dist = dist
-    min_loc = candidate_rope_loc
-    print("FITTED POINT: " + str(min_loc))
-    """
     if DISPLAY:
         plt.imshow(new_di_data, interpolation="nearest")
         plt.show()   
@@ -689,12 +545,8 @@ while True:
     #print(point)
     #point[2] += 0.005 # manually adjust height a tiny bit
     place_point = iface.T_PHOXI_BASE*points_3d[lin_ind2]
-    take_action(point, place_point)
 
-
-
-
-    #PACKING __________________________________________________
+    # point conversion
     xind, yind  = place
     lin_ind = int(img.depth.ij_to_linear(np.array(xind),np.array(yind)))
     place_point=iface.T_PHOXI_BASE*points_3d[lin_ind]
@@ -720,6 +572,27 @@ while True:
 
     new_endpoint_2_point_data = np.array([endpoint_2_point.y, endpoint_2_point.x, endpoint_2_point.z])
     new_endpoint_2_point = Point(new_endpoint_2_point_data, frame=endpoint_2_point.frame)
+
+    #FIND THE PRINCIPLE AXIS FOR THE GRIPPER AND ROTATE, THEN TAKE ACTION
+    principle_axis = g.princ_axis(rope_cloud)
+    grasp_poses= g.generate_grasps(principle_axis,pick, g.L_TCP, point[2])
+    grasp_poses= g.filter_unreachable(grasp_poses,tcp)
+    grasp_pose  = g.select_single_grasp(grasp_poses,tcp)
+    if grasp_pose is None:
+        raise GraspException("No collision free grasps found")
+        #at the end, sanity check that z axis is still facing negative
+    if(grasp_pose.rotation[:,2].dot([0,0,1])>0):
+        print("Warning: upward gripper grasp returned")
+        #raise Exception("Grasp calculated returned a gripper orientation with the gripper pointing upwards")
+    rot_Grasp = Grasp(grasp_pose)
+    iface.grasp(rot_Grasp,None)
+    take_action(point, place_point)
+
+
+
+
+    #PACKING __________________________________________________
+    
     
     push_action_endpoints(new_place_point, [new_endpoint_1_point,new_endpoint_2_point], iface)
     break

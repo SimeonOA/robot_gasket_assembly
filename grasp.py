@@ -300,7 +300,7 @@ class GraspSelector:
         RADIUS2 = 1#distance from original point before termination
         CLOSE2 = .002**2
         #DELTA = .00075#if the depth changes by this much, stop floodfill
-        DELTA = 0.0003
+        DELTA = 0.0002
         NEIGHS = [(-1,0),(1,0),(0,1),(0,-1)]
         #carry out floodfill
         while len(q)>0:

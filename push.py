@@ -74,6 +74,8 @@ def push_action_endpoints(pick,endpoints,iface):
         end = np.array([float(endpoints[1][1]), float(endpoints[1][0])])
     
     move_vector = (end-start)/np.linalg.norm(end-start)
+    print("START: "+str(start))
+    print("END: "+ str(end))
     #print(move_vector)
     DEPTH = .123
     start = np.array([start[0],start[1],DEPTH])

@@ -93,6 +93,7 @@ class Interface:
         l_cur_p, r_cur_p = self.yk.fk(qleft=l_cur_q,qright=r_cur_q)
         lpts=[l_cur_p]+l_targets
         rpts=[r_cur_p]+r_targets
+        
         #compute the actual path (THESE ARE IN URDF ORDER (see urdf_order_2_yumi for details))
         lpath,rpath = self.yk.interpolate_cartesian_waypoints(l_waypoints=lpts,l_qinit=l_cur_q,
                     r_qinit=r_cur_q,r_waypoints=rpts,N=50)
@@ -109,6 +110,7 @@ class Interface:
         if fine:
             if(len(l_targets)>0):self.y.left.goto_pose(l_targets[0],speed=self.speed)
             if(len(r_targets)>0):self.y.right.goto_pose(r_targets[0],speed=self.speed)
+        
 
     def go_pose_plan(self,l_target=None,r_target=None,fine=False):
         self.sync()

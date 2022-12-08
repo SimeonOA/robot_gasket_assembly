@@ -14,12 +14,12 @@ from tcps import *
 from grasp import Grasp, GraspSelector
 from scipy.ndimage.filters import gaussian_filter
 
-
+"""
 #SPEED=(.5,6*np.pi)
 SPEED=(.025,0.3*np.pi)
 iface=Interface("1703005",METAL_GRIPPER.as_frames(YK.l_tcp_frame,YK.l_tip_frame),
     ABB_WHITE.as_frames(YK.r_tcp_frame,YK.r_tip_frame),speed=SPEED)
-
+"""
 
 def act_to_kps(act):
     x, y, dx, dy = act
@@ -30,7 +30,7 @@ def push_action(pick):
     print("pushing down")
     iface.set_speed((.25,5))
     iface.close_grippers()
-    num = 20
+    num = 5
 
     pick_temp = copy.deepcopy(pick)
     pick_temp2 = copy.deepcopy(pick)
@@ -44,22 +44,26 @@ def push_action(pick):
         pick_temp[1] -= 0.02
         num -= 1 
 
-    num2 = 32
+    num2 = 5
     while num2 > 0:
         print("Push Number", num2)
         iface.go_cartesian(l_targets=[RigidTransform(translation=pick_temp2, rotation=Interface.GRIP_DOWN_R,
             from_frame = YK.l_tcp_frame, to_frame = 'base_link')], nwiggles=(10,10),rot=(.0,.0))
         time.sleep(2)
         iface.go_delta(l_trans=[0,0,0.1]) # lift
-        pick_temp2[1] -= 0.02
+        pick_temp2[1] -= 0.023
         num2 -= 1 
 
-def push_action_endpoints(pick,endpoints):
+def push_action_endpoints(pick,endpoints,iface):
+    #SPEED=(.5,6*np.pi)
+    #SPEED=(.025,0.3*np.pi)
+    #iface=Interface("1703005",METAL_GRIPPER.as_frames(YK.l_tcp_frame,YK.l_tip_frame),
+    #    ABB_WHITE.as_frames(YK.r_tcp_frame,YK.r_tip_frame),speed=SPEED)
     print("pushing down")
     iface.set_speed((.25,5))
     iface.close_grippers()
-    num = 20
     
+
     dist_1 = np.linalg.norm(np.array([pick[0]-endpoints[0][0],pick[1]-endpoints[0][1]]))
     dist_2 = np.linalg.norm(np.array([pick[0]-endpoints[1][0],pick[1]-endpoints[1][1]]))
     if(dist_1 > dist_2):
@@ -71,37 +75,35 @@ def push_action_endpoints(pick,endpoints):
     
     move_vector = (end-start)/np.linalg.norm(end-start)
     #print(move_vector)
-    DEPTH = .127
+    DEPTH = .123
     start = np.array([start[0],start[1],DEPTH])
     pick_temp = copy.deepcopy(start)
     pick_temp2 = copy.deepcopy(start)
-    interval_scaling = 0.03
+    interval_scaling = 0.02
+    num = 25
     while num > 0:
-        print("Push Number", num)
+        print("Push Number", num, " Coord: ", pick_temp)
         iface.go_cartesian(l_targets=[RigidTransform(translation=pick_temp, rotation=Interface.GRIP_DOWN_R,
             from_frame = YK.l_tcp_frame, to_frame = 'base_link')], nwiggles=(10,10),rot=(.0,.0))
-        print("here3")
-        time.sleep(2)
-        print("here")
+        time.sleep(1)
         iface.go_delta(l_trans=[0,0,0.1]) # lift
-        print("here2")
-        pick_temp[1] += move_vector[0]*interval_scaling
-        pick_temp[0] += move_vector[1]*interval_scaling
+        pick_temp[0] += move_vector[0]*interval_scaling
+        pick_temp[1] += move_vector[1]*interval_scaling
         num -= 1 
         print(pick_temp)
         print(num)
 
-    num2 = 32
+    num2 = 25
     while num2 > 0:
         print("Push Number", num2)
         iface.go_cartesian(l_targets=[RigidTransform(translation=pick_temp2, rotation=Interface.GRIP_DOWN_R,
             from_frame = YK.l_tcp_frame, to_frame = 'base_link')], nwiggles=(10,10),rot=(.0,.0))
-        time.sleep(2)
+        time.sleep(1)
         iface.go_delta(l_trans=[0,0,0.1]) # lift
-        pick_temp[1] += move_vector[0]*interval_scaling
-        pick_temp[0] += move_vector[1]*interval_scaling
+        pick_temp2[0] += move_vector[0]*interval_scaling
+        pick_temp2[1] += move_vector[1]*interval_scaling
         num2 -= 1 
-        print(pick_temp)
+        print(pick_temp2)
 
     #handle the actual grabbing motion
     #l_grasp=None
@@ -131,6 +133,7 @@ def push_action_endpoints(pick,endpoints):
     # iface.open_grippers()
 
 #policy = CornerPullingBCPolicy()
+"""
 while True:
     q = input("Enter to home arms, anything else to quit\n")
     if not q=='':break
@@ -169,8 +172,15 @@ while True:
     #point = [p for p in point]
     #point[2] += 0.005 # manually adjust height a tiny bit
     #place_point = iface.T_PHOXI_BASE*points_3d[lin_ind2]
+    #point = [0.55538863, 0.21792354, 0.10870991]
+    #point_2 = [0.55538863, 0.21792354, 0.10870991]
+    #point_3 = [0.39306104, 0.2665695 , 0.05135202]
+    point = [0.21792354, 0.55538863, 0.10870991]
+    point_2 = [0.21792354, 0.55538863, 0.10870991]
+    point_3 = [0.2665695, 0.39306104 , 0.05135202]
     
-    push_action_endpoints([0.21960409, 0.27772565+0.2, 0.0566498 ],[[0.20981095, 0.27767961+0.2, 0.05790988],[ 0.17913702, -0.25337428+0.2 , 0.06494368]])
-    break
+    push_action_endpoints(point,[point_2,point_3], iface)
+    # break
     #g.close()
 print("Done with script, can end")
+"""

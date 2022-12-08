@@ -1,0 +1,117 @@
+2022-12-07 22:05:38.685Warning: removing of: PhoXiFC-ComandMessages(59121)-MC was unsuccessfull
+File: /home/conan/.conan/data/PXC/1.7.2/demo/dev/build/d0e528d6f3af1631db2b50922bd94e8c7bbdb83e/PhotoneoMain_REPO/Common/InterprocessTools/InterprocessMemCopyBoostTools.cpp
+Function: Init
+Line: 371
+
+
+2022-12-07 22:05:38.685 New API Output Channel 0
+Sending message: ConnectCommand - Request to 0 
+
+Message sent: ConnectCommand - Request to 0 
+
+Message received: SendAndReceiveBoostSerializableClassVersionsCommand - Request from 0. 
+
+Sending message: SendAndReceiveBoostSerializableClassVersionsCommand - Answer to 0 
+
+Message sent: SendAndReceiveBoostSerializableClassVersionsCommand - Answer to 0 
+
+Message received: ConnectCommand - Answer from 0. Duration: 0.947963 
+
+Sending message: GetDevices - Request to 0 
+
+Message sent: GetDevices - Request to 0 
+
+Message received: GetDevices - Answer from 0. Duration: 0.285562 
+
+Sending message: GetDevices - Request to 0 
+
+Message sent: GetDevices - Request to 0 
+
+Message received: GetDevices - Answer from 0. Duration: 0.248527 
+
+Sending message: GetDevices - Request to 0 
+
+Message sent: GetDevices - Request to 0 
+
+Message received: GetDevices - Answer from 0. Duration: 0.270265 
+
+Sending message: ConnectPhoXi - Request to 0 
+
+Message sent: ConnectPhoXi - Request to 0 
+
+Message received: ConnectPhoXi - Answer from 0. Duration: 22.3514 
+
+2022-12-07 22:05:38.709 Trying to load global configuration from: /home/simeonoa/.PhotoneoPhoXiControl/Settings.json
+2022-12-07 22:05:38.709 Configuration loaded properly
+2022-12-07 22:05:38.710Warning: removing of: PhoXiCM(1703005)-ComandMessages(59121)-MC was unsuccessfull
+File: /home/conan/.conan/data/PXC/1.7.2/demo/dev/build/d0e528d6f3af1631db2b50922bd94e8c7bbdb83e/PhotoneoMain_REPO/Common/InterprocessTools/InterprocessMemCopyBoostTools.cpp
+Function: Init
+Line: 371
+
+
+2022-12-07 22:05:38.710 New API Output Channel 0
+Sending message: ConnectCommand - Request to 0 
+
+Message sent: ConnectCommand - Request to 0 
+
+Message received: SendAndReceiveBoostSerializableClassVersionsCommand - Request from 0. 
+
+Sending message: SendAndReceiveBoostSerializableClassVersionsCommand - Answer to 0 
+
+Message sent: SendAndReceiveBoostSerializableClassVersionsCommand - Answer to 0 
+
+Message received: ConnectCommand - Answer from 0. Duration: 1.57124 
+
+2022-12-07 22:05:38.711 PhoXiTest Init OK
+2022-12-07 22:05:38.711PhoXi Device PhoXi Scanner is Connected
+Sending message: GetHWStatus - Request to 0 
+
+Message sent: GetHWStatus - Request to 0 
+
+Message received: GetHWStatus - Answer from 0. Duration: 0.266641 
+
+Sending message: GetPhoXiControlVersion - Request to 0 
+
+Message sent: GetPhoXiControlVersion - Request to 0 
+
+Message received: GetPhoXiControlVersion - Answer from 0. Duration: 0.186162 
+
+Sending message: GetDevices - Request to 0 
+
+Message sent: GetDevices - Request to 0 
+
+Message received: GetDevices - Answer from 0. Duration: 0.338382 
+
+Sending message: GetHardwareIdentification - Request to 0 
+
+Message sent: GetHardwareIdentification - Request to 0 
+
+Message received: GetHardwareIdentification - Answer from 0. Duration: 0.167173 
+
+Sending message: GetHWStatus - Request to 0 
+
+Message sent: GetHWStatus - Request to 0 
+
+Message received: GetHWStatus - Answer from 0. Duration: 1.01965 
+
+Sending message: GetDevices - Request to 0 
+
+Message sent: GetDevices - Request to 0 
+
+Message received: GetDevices - Answer from 0. Duration: 1.25062 
+
+Sending message: GetHardwareIdentification - Request to 0 
+
+Message sent: GetHardwareIdentification - Request to 0 
+
+Message received: GetHardwareIdentification - Answer from 0. Duration: 0.904101 
+
+Broadcasting command DisconnectCommand to 1 outputs:
+Sending message: DisconnectCommand - Request to 0 
+
+Message sent: DisconnectCommand - Request to 0 
+
+Message received: DisconnectCommand - Answer from 0. Duration: 0.365911 
+
+Message received: WakeDummy - Request from -1. 
+

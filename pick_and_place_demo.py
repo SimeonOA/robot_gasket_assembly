@@ -1,5 +1,5 @@
 #from ../../cable_untangling.interface_rws import Interface
-from autolab_core import RigidTransform,RgbdImage,DepthImage,ColorImage, CameraIntrinsics
+from autolab_core import RigidTransform,RgbdImage,DepthImage,ColorImage, CameraIntrinsics, Point
 import numpy as np
 import math
 import copy
@@ -17,10 +17,12 @@ from tcps import *
 from grasp import Grasp, GraspSelector
 from scipy.ndimage.filters import gaussian_filter
 import cv2
-import push
+from push import push_action_endpoints
 behavior_cloning_path = os.path.dirname(os.path.abspath(__file__)) + "/../../multi-fidelity-behavior-cloning"
 sys.path.insert(0, behavior_cloning_path)
 #from analysis import CornerPullingBCPolicy
+
+DISPLAY = True
 
 
 def click_points(img):
@@ -69,28 +71,32 @@ def take_action(pick, place):
     #r_grasp=grasp
     #r_grasp.pose.from_frame=YK.r_tcp_frame
     #iface.grasp(l_grasp=l_grasp,r_grasp=r_grasp)
+    iface.set_speed((.1,1))
     iface.go_cartesian(l_targets=[RigidTransform(translation=pick, rotation=Interface.GRIP_DOWN_R,
       from_frame = YK.l_tcp_frame, to_frame = 'base_link')], nwiggles=(10,10),rot=(.0,.0))
     # iface.go_cartesian(r_targets=[RigidTransform(translation=pick, rotation=Interface.GRIP_DOWN_R,
     #     from_frame = YK.r_tcp_frame, to_frame = 'base_link')], nwiggles=(10,10),rot=(.0,.0))
-    iface.set_speed((.25,5))
     iface.close_grippers()
     time.sleep(3)
     iface.go_delta(l_trans=[0,0,0.1]) # lift
     time.sleep(1)
+    iface.set_speed((.1,1))
     delta = [place[i] - pick[i] for i in range(3)]
+    change_height = 0.01
+    delta[2] = delta[2] + change_height
     iface.go_delta(l_trans=delta)
+    iface.go_delta(l_trans=[0,0,-0.05])
     iface.open_grippers()
     iface.home()
     iface.sync()
     #iface.set_speed(SPEED)
-    iface.set_speed((.25,5))
+    iface.set_speed((.1,1))
     time.sleep(2)
     iface.open_grippers()
 #policy = CornerPullingBCPolicy()
 while True:
-    q = input("Enter to home arms, anything else to quit\n")
-    if not q=='':break
+    #q = input("Enter to home arms, anything else to quit\n")
+    #if not q=='':break
     iface.home()
     iface.open_grippers()
     iface.sync()
@@ -100,6 +106,9 @@ while True:
     g = GraspSelector(img,iface.cam.intrinsics,iface.T_PHOXI_BASE)
     #NEW --------------------------------------------------------------------------------
     #----------------------Find brightest pixel for segment_cable
+    if DISPLAY:
+        plt.imshow(img.color.data, interpolation="nearest")
+        plt.show()
     three_mat_color = img.color.data
     pixel_r = 0
     pixel_c = 0
@@ -109,26 +118,28 @@ while True:
     delete_later = []
     max_score = 0
     max_scoring_loc = (0,0)
+    highlight_upper = 254
+    highlight_lower = 210
     for r in range(len(three_mat_color)):
         for c  in range(len(three_mat_color[r])):
-            if(three_mat_color[r][c][0] == 255 and three_mat_color[r][c][1] == 255 and three_mat_color[r][c][2] == 255):
+            if(highlight_lower < three_mat_color[r][c][0] <= highlight_upper and 210< three_mat_color[r][c][1] <= highlight_upper and 210 < three_mat_color[r][c][2] <= highlight_upper):
                 curr_score = 0
-                for add in range(1,8):
-                    if(three_mat_color[min(len(three_mat_color)-add, r+add)][c][0] == 255):
+                for add in range(1,20):
+                    if(highlight_lower < three_mat_color[min(len(three_mat_color)-add, r+add)][c][0] <= highlight_upper):
                         curr_score += 1
-                    if(three_mat_color[max(0, r-add)][c][0] == 255):
+                    if(highlight_lower <three_mat_color[max(0, r-add)][c][0] <= highlight_upper):
                         curr_score += 1
-                    if(three_mat_color[r][min(len(three_mat_color[0])-add, c+add)][0] == 255):
+                    if(highlight_lower <three_mat_color[r][min(len(three_mat_color[0])-add, c+add)][0] <= highlight_upper):
                         curr_score += 1
-                    if(three_mat_color[r][max(0, c-add)][0] == 255):
+                    if(highlight_lower <three_mat_color[r][max(0, c-add)][0] <= highlight_upper):
                         curr_score += 1
-                    if(three_mat_color[min(len(three_mat_color)-add, r+add)][min(len(three_mat_color[0])-add, c+add)][0] == 255):
+                    if(highlight_lower <three_mat_color[min(len(three_mat_color)-add, r+add)][min(len(three_mat_color[0])-add, c+add)][0] <= highlight_upper):
                         curr_score += 1
-                    if(three_mat_color[min(len(three_mat_color)-add, r+add)][max(0, c-add)][0] == 255):
+                    if(highlight_lower <three_mat_color[min(len(three_mat_color)-add, r+add)][max(0, c-add)][0] <= highlight_upper):
                         curr_score += 1
-                    if(three_mat_color[max(0, r-add)][min(len(three_mat_color[0])-add, c+add)][0] == 255):
+                    if(highlight_lower <three_mat_color[max(0, r-add)][min(len(three_mat_color[0])-add, c+add)][0] <= highlight_upper):
                         curr_score += 1
-                    if(three_mat_color[max(0, r-add)][max(0, c-add)][0] == 255):
+                    if(highlight_lower <three_mat_color[max(0, r-add)][max(0, c-add)][0] <= highlight_upper):
                         curr_score += 1
                 if(curr_score>max_score):
                     max_scoring_loc=(c,r)
@@ -151,8 +162,9 @@ while True:
     new_transf = iface.T_PHOXI_BASE.inverse()
     transformed_rope_cloud = new_transf.apply(rope_cloud)
     di = iface.cam.intrinsics.project_to_image(transformed_rope_cloud, round_px = False)
-    plt.imshow(di._image_data(), interpolation="nearest")
-    plt.show()
+    if DISPLAY:
+        plt.imshow(di._image_data(), interpolation="nearest")
+        plt.show()
     
     
     di_data = di._image_data()
@@ -211,8 +223,9 @@ while True:
                     new_di_data[r][c]=0.0
 
     new_di = DepthImage(new_di_data.astype(np.float32), frame=di.frame)
-    plt.imshow(new_di._image_data(), interpolation="nearest")
-    plt.show()
+    if DISPLAY:
+        plt.imshow(new_di._image_data(), interpolation="nearest")
+        plt.show()
     #plt.savefig("Isolated_Cable")
     #new_di.save("Isolated_Cable.png")
 
@@ -240,7 +253,7 @@ while True:
                 save_loc = (c,r)
     new_di_data = gaussian_filter(new_di_data, sigma=1)
 
-    compress_factor = 55
+    compress_factor = 50
     #print(int(math.floor(len(di_data)/compress_factor)))
     #print(int(math.floor(len(di_data[0])/compress_factor)))
     rows_comp = int(math.floor(len(di_data)/compress_factor))
@@ -328,8 +341,9 @@ while True:
     ##rint("ALL SOLUTIONS: "+str(all_solns))
     #for soln in all_solns:
     scaled_test_loc = (test_loc[0]*compress_factor,test_loc[1]*compress_factor)
-    plt.imshow(compressed_map, interpolation="nearest")
-    plt.show() 
+    if DISPLAY:
+        plt.imshow(compressed_map, interpolation="nearest")
+        plt.show() 
     min_dist = 10000
     candidate_rope_loc = (0,0)
     for r in range(len(new_di_data)):
@@ -489,10 +503,11 @@ while True:
     min_loc = candidate_rope_loc
     print("FITTED POINT: " + str(min_loc))
     """
-    plt.imshow(new_di_data, interpolation="nearest")
-    plt.show()   
-    plt.imshow(img.color.data, interpolation="nearest")
-    plt.show()  
+    if DISPLAY:
+        plt.imshow(new_di_data, interpolation="nearest")
+        plt.show()   
+        plt.imshow(img.color.data, interpolation="nearest")
+        plt.show()  
     #new_di = DepthImage(new_di_data.astype(np.float32), frame=di.frame)
     #plt.imshow(new_di._image_data(), interpolation="nearest")
 
@@ -502,8 +517,8 @@ while True:
     #print(min_loc)
     
     #----------------------FIND END OF CHANNEL
-    lower = 80
-    upper = 90
+    lower = 254
+    upper = 256
     channel_start = (0,0)
     max_edges = 0
 
@@ -531,14 +546,15 @@ while True:
                 if(curr_edges > max_edges):
                     max_edges = curr_edges
                     channel_start = (c,r)
-    #print(channel_start)
+    print("CHANNEL_START: "+str(channel_start))
     channel_cloud,_ = g.segment_channel(channel_start)
     transformed_channel_cloud = new_transf.apply(channel_cloud)
     image_channel = iface.cam.intrinsics.project_to_image(transformed_channel_cloud, round_px = False) #should this be transformed_channel_cloud?
     image_channel_data = image_channel._image_data()
-    copy_channel_data = np.copy(image_channel_data)
-    plt.imshow(image_channel_data, interpolation="nearest")
-    plt.show()
+    copy_channel_data = copy.deepcopy(image_channel_data)
+    if DISPLAY:
+        plt.imshow(image_channel_data, interpolation="nearest")
+        plt.show()
     figure = plt.figure()
     plt.savefig("Point_Cloud_Channel.png")
     #Threshold pointcloud
@@ -581,10 +597,12 @@ while True:
                     max_edges = curr_edges
     print(best_location)
     dist_tolerance = 400
+    """
     for r in range(len(image_channel_data)):
         for c in range(len(image_channel_data[r])):
             if(np.linalg.norm(np.array([r-best_location[1],c-best_location[0]])) < dist_tolerance):
                 image_channel_data[r][c] = 0
+    """
     max_edges = 8
     best_locations = []
     for r in range(len(image_channel_data)):
@@ -618,17 +636,20 @@ while True:
                 min_dist = np.linalg.norm(np.array([loc[1]-best_location[1],loc[0]-best_location[0]]))
                 best_location = loc
     print("CHANNEL PLACE: "+str(best_location))
-    plt.imshow(image_channel_data, interpolation="nearest")
-    plt.show()
+    if DISPLAY:
+        plt.imshow(image_channel_data, interpolation="nearest")
+        plt.show()
     #img_skeleton = np.array(image_channel_data)
-    plt.imshow(copy_channel_data, interpolation="nearest")
-    plt.show()
+    if DISPLAY:
+        plt.imshow(copy_channel_data, interpolation="nearest")
+        plt.show()
     img_skeleton = cv2.cvtColor(copy_channel_data,cv2.COLOR_RGB2GRAY)
     features = cv2.goodFeaturesToTrack(img_skeleton, 2, 0.01, 200)
     for (x,y) in features[:,0].astype("int0"):
         cv2.circle(img_skeleton,(x,y),27,127,-1)
     print(features)
-    plt.imshow(img_skeleton)
+    if DISPLAY:
+        plt.imshow(img_skeleton)
     endpoints = [x[0] for x in features]
     
     #plt.savefig("Channel_Remove_Rope.png")
@@ -640,7 +661,15 @@ while True:
     #NEW ---------------------------------------------------------------------------------
     #pick,place=click_points(img) #left is pick point, right is place point
     pick = min_loc
+
+    #Use estimation
     place = best_location
+    #Use left side
+    if(endpoints[0][0] < endpoints[1][0]):
+        place = endpoints[0]
+    else:
+        place = endpoints[1]
+    print("ACTUAL PLACE: "+str(place))
     #place = FILL IN HERE
     # VAINAVI: will need to observe and crop image most likely
     #action = policy.get_action(img.color._data)
@@ -666,22 +695,33 @@ while True:
 
 
     #PACKING __________________________________________________
-    xind, yind = place
+    xind, yind  = place
     lin_ind = int(img.depth.ij_to_linear(np.array(xind),np.array(yind)))
     place_point=iface.T_PHOXI_BASE*points_3d[lin_ind]
 
-    xind, yind = endpoints[0]
+    xind, yind  = endpoints[0]
     lin_ind = int(img.depth.ij_to_linear(np.array(xind),np.array(yind)))
     endpoint_1_point =iface.T_PHOXI_BASE*points_3d[lin_ind]
 
     xind, yind = endpoints[1]
     lin_ind = int(img.depth.ij_to_linear(np.array(xind),np.array(yind)))
     endpoint_2_point =iface.T_PHOXI_BASE*points_3d[lin_ind]
-
+    
+    print("TESTING")
     print(place_point)
     print(endpoint_1_point)
     print(endpoint_2_point)
-    push.push_action_endpoints(place_point, [endpoint_1_point,endpoint_2_point])
+
+    new_place_point_data = np.array([place_point.y, place_point.x, place_point.z])
+    new_place_point = Point(new_place_point_data, frame=place_point.frame)
+
+    new_endpoint_1_point_data = np.array([endpoint_1_point.y, endpoint_1_point.x, endpoint_1_point.z])
+    new_endpoint_1_point = Point(new_endpoint_1_point_data, frame=endpoint_1_point.frame)
+
+    new_endpoint_2_point_data = np.array([endpoint_2_point.y, endpoint_2_point.x, endpoint_2_point.z])
+    new_endpoint_2_point = Point(new_endpoint_2_point_data, frame=endpoint_2_point.frame)
+    
+    push_action_endpoints(new_place_point, [new_endpoint_1_point,new_endpoint_2_point], iface)
     break
     #g.close()
 print("Done with script, can end")

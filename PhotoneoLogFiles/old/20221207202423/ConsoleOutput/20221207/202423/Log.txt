@@ -1,0 +1,233 @@
+2022-12-07 20:24:23.294Warning: removing of: PhoXiFC-ComandMessages(27141)-MC was unsuccessfull
+File: /home/conan/.conan/data/PXC/1.7.2/demo/dev/build/d0e528d6f3af1631db2b50922bd94e8c7bbdb83e/PhotoneoMain_REPO/Common/InterprocessTools/InterprocessMemCopyBoostTools.cpp
+Function: Init
+Line: 371
+
+
+2022-12-07 20:24:23.294 New API Output Channel 0
+Sending message: ConnectCommand - Request to 0 
+
+Message sent: ConnectCommand - Request to 0 
+
+Message received: SendAndReceiveBoostSerializableClassVersionsCommand - Request from 0. 
+
+Sending message: SendAndReceiveBoostSerializableClassVersionsCommand - Answer to 0 
+
+Message sent: SendAndReceiveBoostSerializableClassVersionsCommand - Answer to 0 
+
+Message received: ConnectCommand - Answer from 0. Duration: 0.920722 
+
+Sending message: GetDevices - Request to 0 
+
+Message sent: GetDevices - Request to 0 
+
+Message received: GetDevices - Answer from 0. Duration: 0.285192 
+
+Sending message: GetDevices - Request to 0 
+
+Message sent: GetDevices - Request to 0 
+
+Message received: GetDevices - Answer from 0. Duration: 0.226472 
+
+Sending message: GetDevices - Request to 0 
+
+Message sent: GetDevices - Request to 0 
+
+Message received: GetDevices - Answer from 0. Duration: 0.24148 
+
+Sending message: ConnectPhoXi - Request to 0 
+
+Message sent: ConnectPhoXi - Request to 0 
+
+Message received: ConnectPhoXi - Answer from 0. Duration: 13.3281 
+
+2022-12-07 20:24:23.309 Trying to load global configuration from: /home/simeonoa/.PhotoneoPhoXiControl/Settings.json
+2022-12-07 20:24:23.309 Configuration loaded properly
+2022-12-07 20:24:23.309Warning: removing of: PhoXiCM(1703005)-ComandMessages(27141)-MC was unsuccessfull
+File: /home/conan/.conan/data/PXC/1.7.2/demo/dev/build/d0e528d6f3af1631db2b50922bd94e8c7bbdb83e/PhotoneoMain_REPO/Common/InterprocessTools/InterprocessMemCopyBoostTools.cpp
+Function: Init
+Line: 371
+
+
+2022-12-07 20:24:23.310 New API Output Channel 0
+Sending message: ConnectCommand - Request to 0 
+
+Message sent: ConnectCommand - Request to 0 
+
+Message received: SendAndReceiveBoostSerializableClassVersionsCommand - Request from 0. 
+
+Sending message: SendAndReceiveBoostSerializableClassVersionsCommand - Answer to 0 
+
+Message sent: SendAndReceiveBoostSerializableClassVersionsCommand - Answer to 0 
+
+Message received: ConnectCommand - Answer from 0. Duration: 1.33667 
+
+2022-12-07 20:24:23.311 PhoXiTest Init OK
+2022-12-07 20:24:23.311PhoXi Device PhoXi Scanner is Connected
+Sending message: GetHWStatus - Request to 0 
+
+Message sent: GetHWStatus - Request to 0 
+
+Message received: GetHWStatus - Answer from 0. Duration: 0.282061 
+
+Sending message: GetPhoXiControlVersion - Request to 0 
+
+Message sent: GetPhoXiControlVersion - Request to 0 
+
+Message received: GetPhoXiControlVersion - Answer from 0. Duration: 0.205354 
+
+Sending message: GetDevices - Request to 0 
+
+Message sent: GetDevices - Request to 0 
+
+Message received: GetDevices - Answer from 0. Duration: 0.302294 
+
+Sending message: GetHardwareIdentification - Request to 0 
+
+Message sent: GetHardwareIdentification - Request to 0 
+
+Message received: GetHardwareIdentification - Answer from 0. Duration: 0.160053 
+
+Sending message: GetHWStatus - Request to 0 
+
+Message sent: GetHWStatus - Request to 0 
+
+Message received: GetHWStatus - Answer from 0. Duration: 1.07774 
+
+Sending message: GetDevices - Request to 0 
+
+Message sent: GetDevices - Request to 0 
+
+Message received: GetDevices - Answer from 0. Duration: 1.15684 
+
+Sending message: GetHardwareIdentification - Request to 0 
+
+Message sent: GetHardwareIdentification - Request to 0 
+
+Message received: GetHardwareIdentification - Answer from 0. Duration: 0.752989 
+
+Sending message: SoftwareTrigger - Request to 0 
+
+Message sent: SoftwareTrigger - Request to 0 
+
+Message received: SoftwareTrigger - Answer from 0. Duration: 5.04091 
+
+Sending message: GetHWStatus - Request to 0 
+
+Message sent: GetHWStatus - Request to 0 
+
+Message received: GetHWStatus - Answer from 0. Duration: 1.02561 
+
+Message received: CommunicationDataBufferNewFrame - Request from 0. 
+
+Sending message: CommunicationDataBufferNewFrame - Answer to 0 
+
+Message sent: CommunicationDataBufferNewFrame - Answer to 0 
+
+Sending message: GetHWStatus - Request to 0 
+
+Message sent: GetHWStatus - Request to 0 
+
+Message received: GetHWStatus - Answer from 0. Duration: 0.359608 
+
+Sending message: SoftwareTrigger - Request to 0 
+
+Message sent: SoftwareTrigger - Request to 0 
+
+Message received: SoftwareTrigger - Answer from 0. Duration: 4.58047 
+
+Sending message: GetHWStatus - Request to 0 
+
+Message sent: GetHWStatus - Request to 0 
+
+Message received: GetHWStatus - Answer from 0. Duration: 0.937771 
+
+Message received: CommunicationDataBufferNewFrame - Request from 0. 
+
+Sending message: CommunicationDataBufferNewFrame - Answer to 0 
+
+Message sent: CommunicationDataBufferNewFrame - Answer to 0 
+
+Sending message: GetDevices - Request to 0 
+
+Message sent: GetDevices - Request to 0 
+
+Message received: GetDevices - Answer from 0. Duration: 0.446461 
+
+Sending message: GetHardwareIdentification - Request to 0 
+
+Message sent: GetHardwareIdentification - Request to 0 
+
+Message received: GetHardwareIdentification - Answer from 0. Duration: 0.294765 
+
+Sending message: GetHWStatus - Request to 0 
+
+Message sent: GetHWStatus - Request to 0 
+
+Message received: GetHWStatus - Answer from 0. Duration: 0.285385 
+
+Sending message: GetDevices - Request to 0 
+
+Message sent: GetDevices - Request to 0 
+
+Message received: GetDevices - Answer from 0. Duration: 0.290225 
+
+Sending message: GetHardwareIdentification - Request to 0 
+
+Message sent: GetHardwareIdentification - Request to 0 
+
+Message received: GetHardwareIdentification - Answer from 0. Duration: 0.231858 
+
+Sending message: GetDevices - Request to 0 
+
+Message sent: GetDevices - Request to 0 
+
+Message received: GetDevices - Answer from 0. Duration: 0.274412 
+
+Sending message: GetHardwareIdentification - Request to 0 
+
+Message sent: GetHardwareIdentification - Request to 0 
+
+Message received: GetHardwareIdentification - Answer from 0. Duration: 0.267649 
+
+Sending message: SoftwareTrigger - Request to 0 
+
+Message sent: SoftwareTrigger - Request to 0 
+
+Message received: SoftwareTrigger - Answer from 0. Duration: 4.14935 
+
+Sending message: GetHWStatus - Request to 0 
+
+Message sent: GetHWStatus - Request to 0 
+
+Message received: GetHWStatus - Answer from 0. Duration: 0.952125 
+
+Message received: CommunicationDataBufferNewFrame - Request from 0. 
+
+Sending message: CommunicationDataBufferNewFrame - Answer to 0 
+
+Message sent: CommunicationDataBufferNewFrame - Answer to 0 
+
+Sending message: GetHWStatus - Request to 0 
+
+Message sent: GetHWStatus - Request to 0 
+
+Message received: GetHWStatus - Answer from 0. Duration: 0.384361 
+
+Sending message: StopAcquisition - Request to 0 
+
+Message sent: StopAcquisition - Request to 0 
+
+Message received: StopAcquisition - Answer from 0. Duration: 6.25889 
+
+Message received: WakeDummy - Request from -1. 
+
+Broadcasting command DisconnectCommand to 1 outputs:
+Sending message: DisconnectCommand - Request to 0 
+
+Message sent: DisconnectCommand - Request to 0 
+
+Message received: DisconnectCommand - Answer from 0. Duration: 0.213927 
+
+Message received: WakeDummy - Request from -1. 
+

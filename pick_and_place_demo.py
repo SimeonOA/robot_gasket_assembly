@@ -1,29 +1,30 @@
-#from ../../cable_untangling.interface_rws import Interface
-from autolab_core import RigidTransform,RgbdImage,DepthImage,ColorImage, CameraIntrinsics, Point
+# from ../../cable_untangling.interface_rws import Interface
+from interface_rws import Interface
+from yumirws.yumi import YuMiArm, YuMi
+from push import push_action_endpoints
+import cv2
+from scipy.ndimage.filters import gaussian_filter
+from grasp import Grasp, GraspSelector
+from tcps import *
+from autolab_core import RigidTransform, RgbdImage, DepthImage, ColorImage, CameraIntrinsics, Point
 import numpy as np
 import math
 import copy
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
-#from ../../cable_untangling.tcps import *
-#from ../../cable_untangling.grasp import Grasp,GraspSelector
+# from ../../cable_untangling.tcps import *
+# from ../../cable_untangling.grasp import Grasp,GraspSelector
 import time
 import os
 import sys
 cable = os.path.dirname(os.path.abspath(__file__)) + "/../../cable_untangling"
-sys.path.insert(0,cable)
-from interface_rws import Interface 
-from tcps import *
-from grasp import Grasp, GraspSelector
-from scipy.ndimage.filters import gaussian_filter
-import cv2
-from push import push_action_endpoints
-from yumirws.yumi import YuMiArm, YuMi
-behavior_cloning_path = os.path.dirname(os.path.abspath(__file__)) + "/../../multi-fidelity-behavior-cloning"
+sys.path.insert(0, cable)
+behavior_cloning_path = os.path.dirname(os.path.abspath(
+    __file__)) + "/../../multi-fidelity-behavior-cloning"
 sys.path.insert(0, behavior_cloning_path)
 #from analysis import CornerPullingBCPolicy
 
-DISPLAY = True
+DISPLAY = False
 
 
 def click_points(img):
@@ -31,84 +32,92 @@ def click_points(img):
     fig, ax = plt.subplots()
     ax.imshow(img.color.data)
     points_3d = iface.cam.intrinsics.deproject(img.depth)
-    pick,place = None,None
+    pick, place = None, None
+
     def onclick(event):
-        xind,yind = int(event.xdata),int(event.ydata)
-        coords=(xind,yind)
-        lin_ind = int(img.depth.ij_to_linear(np.array(xind),np.array(yind)))
-        nonlocal pick,place
-        point=iface.T_PHOXI_BASE*points_3d[lin_ind]
-        print("Clicked point in world coords: ",point)
-        if(point.z>.5):
+        xind, yind = int(event.xdata), int(event.ydata)
+        coords = (xind, yind)
+        lin_ind = int(img.depth.ij_to_linear(np.array(xind), np.array(yind)))
+        nonlocal pick, place
+        point = iface.T_PHOXI_BASE*points_3d[lin_ind]
+        print("Clicked point in world coords: ", point)
+        if(point.z > .5):
             print("Clicked point with no depth info!")
             return
-        if(event.button==1):
-            pick=coords
-        elif(event.button==3):
-            place=coords
+        if(event.button == 1):
+            pick = coords
+        elif(event.button == 3):
+            place = coords
     cid = fig.canvas.mpl_connect('button_press_event', onclick)
     plt.show()
-    return pick,place
-#SPEED=(.5,6*np.pi)
-SPEED=(.025,0.3*np.pi)
-iface=Interface("1703005",METAL_GRIPPER.as_frames(YK.l_tcp_frame,YK.l_tip_frame),
-    ABB_WHITE.as_frames(YK.r_tcp_frame,YK.r_tip_frame),speed=SPEED)
+    return pick, place
+
+
+# SPEED=(.5,6*np.pi)
+SPEED = (.025, 0.3*np.pi)
+iface = Interface("1703005", METAL_GRIPPER.as_frames(YK.l_tcp_frame, YK.l_tip_frame),
+                  ABB_WHITE.as_frames(YK.r_tcp_frame, YK.r_tip_frame), speed=SPEED)
+
 
 def act_to_kps(act):
     x, y, dx, dy = act
     x, y, dx, dy = int(x*224), int(y*224), int(dx*224), int(dy*224)
     return (x, y), (x+dx, y+dy)
 
+
 def take_action(pick, place):
 
-    #handle the actual grabbing motion
-    #l_grasp=None
-    #r_grasp=None
-    #single grasp
+    # handle the actual grabbing motion
+    # l_grasp=None
+    # r_grasp=None
+    # single grasp
     #grasp = g.single_grasp(pick,.007,iface.R_TCP)
     # g.col_interface.visualize_grasps([grasp.pose],iface.R_TCP)
     #wrist = grasp.pose*iface.R_TCP.inverse()
     print("grabbing with left arm")
-    #r_grasp=grasp
-    #r_grasp.pose.from_frame=YK.r_tcp_frame
-    #iface.grasp(l_grasp=l_grasp,r_grasp=r_grasp)
-    iface.set_speed((.1,1))
+    # r_grasp=grasp
+    # r_grasp.pose.from_frame=YK.r_tcp_frame
+    # iface.grasp(l_grasp=l_grasp,r_grasp=r_grasp)
+    iface.set_speed((.1, 1))
     #yumi_left = iface.y.left
-    #print(yumi_left.get_pose())
+    # print(yumi_left.get_pose())
     iface.go_cartesian(l_targets=[RigidTransform(translation=pick, rotation=Interface.GRIP_DOWN_R,
-      from_frame = YK.l_tcp_frame, to_frame = 'base_link')], nwiggles=(10,10),rot=(.0,.0))
+                                                 from_frame=YK.l_tcp_frame, to_frame='base_link')], nwiggles=(10, 10), rot=(.0, .0))
     # iface.go_cartesian(r_targets=[RigidTransform(translation=pick, rotation=Interface.GRIP_DOWN_R,
     #     from_frame = YK.r_tcp_frame, to_frame = 'base_link')], nwiggles=(10,10),rot=(.0,.0))
     iface.close_grippers()
     time.sleep(3)
-    iface.go_delta(l_trans=[0,0,0.1]) # lift
+    iface.go_delta(l_trans=[0, 0, 0.1])  # lift
     time.sleep(1)
-    iface.set_speed((.1,1))
+    iface.set_speed((.1, 1))
     delta = [place[i] - pick[i] for i in range(3)]
     change_height = 0.01
     delta[2] = delta[2] + change_height
     iface.go_delta(l_trans=delta)
-    iface.go_delta(l_trans=[0,0,-0.05])
+    iface.go_delta(l_trans=[0, 0, -0.05])
     iface.open_grippers()
     iface.home()
     iface.sync()
-    #iface.set_speed(SPEED)
-    iface.set_speed((.1,1))
+    # iface.set_speed(SPEED)
+    iface.set_speed((.1, 1))
     time.sleep(2)
     iface.open_grippers()
+
+
 #policy = CornerPullingBCPolicy()
 while True:
     #q = input("Enter to home arms, anything else to quit\n")
-    #if not q=='':break
+    # if not q=='':break
     iface.home()
     iface.open_grippers()
     iface.sync()
-    #set up a simple interface for clicking on a point in the image
-    img=iface.take_image()
+    # set up a simple interface for clicking on a point in the image
+    img = iface.take_image()
 
-    g = GraspSelector(img,iface.cam.intrinsics,iface.T_PHOXI_BASE)
-    #NEW --------------------------------------------------------------------------------
-    #----------------------Find brightest pixel for segment_cable
+    g = GraspSelector(img, iface.cam.intrinsics, iface.T_PHOXI_BASE)
+    # NEW --------------------------------------------------------------------------------
+
+    # ----------------------Find brightest pixel for segment_cable
     if DISPLAY:
         plt.imshow(img.color.data, interpolation="nearest")
         plt.show()
@@ -120,81 +129,79 @@ while True:
     upper = 190
     delete_later = []
     max_score = 0
-    max_scoring_loc = (0,0)
+    max_scoring_loc = (0, 0)
     highlight_upper = 254
     highlight_lower = 210
     for r in range(len(three_mat_color)):
-        for c  in range(len(three_mat_color[r])):
-            if(highlight_lower < three_mat_color[r][c][0] <= highlight_upper and 210< three_mat_color[r][c][1] <= highlight_upper and 210 < three_mat_color[r][c][2] <= highlight_upper):
+        for c in range(len(three_mat_color[r])):
+            if(highlight_lower < three_mat_color[r][c][0] <= highlight_upper and 210 < three_mat_color[r][c][1] <= highlight_upper and 210 < three_mat_color[r][c][2] <= highlight_upper):
                 curr_score = 0
-                for add in range(1,20):
+                for add in range(1, 20):
                     if(highlight_lower < three_mat_color[min(len(three_mat_color)-add, r+add)][c][0] <= highlight_upper):
                         curr_score += 1
-                    if(highlight_lower <three_mat_color[max(0, r-add)][c][0] <= highlight_upper):
+                    if(highlight_lower < three_mat_color[max(0, r-add)][c][0] <= highlight_upper):
                         curr_score += 1
-                    if(highlight_lower <three_mat_color[r][min(len(three_mat_color[0])-add, c+add)][0] <= highlight_upper):
+                    if(highlight_lower < three_mat_color[r][min(len(three_mat_color[0])-add, c+add)][0] <= highlight_upper):
                         curr_score += 1
-                    if(highlight_lower <three_mat_color[r][max(0, c-add)][0] <= highlight_upper):
+                    if(highlight_lower < three_mat_color[r][max(0, c-add)][0] <= highlight_upper):
                         curr_score += 1
-                    if(highlight_lower <three_mat_color[min(len(three_mat_color)-add, r+add)][min(len(three_mat_color[0])-add, c+add)][0] <= highlight_upper):
+                    if(highlight_lower < three_mat_color[min(len(three_mat_color)-add, r+add)][min(len(three_mat_color[0])-add, c+add)][0] <= highlight_upper):
                         curr_score += 1
-                    if(highlight_lower <three_mat_color[min(len(three_mat_color)-add, r+add)][max(0, c-add)][0] <= highlight_upper):
+                    if(highlight_lower < three_mat_color[min(len(three_mat_color)-add, r+add)][max(0, c-add)][0] <= highlight_upper):
                         curr_score += 1
-                    if(highlight_lower <three_mat_color[max(0, r-add)][min(len(three_mat_color[0])-add, c+add)][0] <= highlight_upper):
+                    if(highlight_lower < three_mat_color[max(0, r-add)][min(len(three_mat_color[0])-add, c+add)][0] <= highlight_upper):
                         curr_score += 1
-                    if(highlight_lower <three_mat_color[max(0, r-add)][max(0, c-add)][0] <= highlight_upper):
+                    if(highlight_lower < three_mat_color[max(0, r-add)][max(0, c-add)][0] <= highlight_upper):
                         curr_score += 1
-                if(curr_score>max_score):
-                    max_scoring_loc=(c,r)
-                    max_score=curr_score
-            
-            if(lower <  three_mat_color[r][c][1] < upper):
-                delete_later += [(c,r)]
-            #if(c == 500):
+                if(curr_score > max_score):
+                    max_scoring_loc = (c, r)
+                    max_score = curr_score
+
+            if(lower < three_mat_color[r][c][1] < upper):
+                delete_later += [(c, r)]
+            # if(c == 500):
             #    print("X: " + str(c)+" Y: "+str(r)+" R: "+str(three_mat_color[r][c][0]) + " G: "+str(three_mat_color[r][c][1]) + " B:" +str(three_mat_color[r][c][2]) + " AVG: ")
     loc = max_scoring_loc
     print("Starting segmenet_cable pt: "+str(max_scoring_loc))
-    #print(loc)
-    #print(delete_later)
-    #print(delete_later)
-    #----------------------Segment
-    rope_cloud,_ = g.segment_cable(loc)
-    #print(rope_cloud.data)
-    #----------------------Remove block
+    # print(loc)
+    # print(delete_later)
+    # print(delete_later)
+    # ----------------------Segment
+    rope_cloud, _ = g.segment_cable(loc)
+    # print(rope_cloud.data)
+    # ----------------------Remove block
 
     new_transf = iface.T_PHOXI_BASE.inverse()
     transformed_rope_cloud = new_transf.apply(rope_cloud)
-    di = iface.cam.intrinsics.project_to_image(transformed_rope_cloud, round_px = False)
+    di = iface.cam.intrinsics.project_to_image(
+        transformed_rope_cloud, round_px=False)
     if DISPLAY:
         plt.imshow(di._image_data(), interpolation="nearest")
         plt.show()
-    
-    
+
     di_data = di._image_data()
     for delete in delete_later:
-         di_data[delete[1]][delete[0]] = [float(0),float(0),float(0)]
-    
-    mask = np.zeros((len(di_data),len(di_data[0])))
+        di_data[delete[1]][delete[0]] = [float(0), float(0), float(0)]
+
+    mask = np.zeros((len(di_data), len(di_data[0])))
     loc_list = [loc]
 
     # modified segment_cable code to build a mask for the cable
 
-    #pick the brightest rgb point in the depth image
-    #increment in each direction for it's neighbors looking to see if it meets the thresholded rgb value
-    # if not, continue 
+    # pick the brightest rgb point in the depth image
+    # increment in each direction for it's neighbors looking to see if it meets the thresholded rgb value
+    # if not, continue
     # if yes set it's x,y position to the mask matrix with the value 1
     # add that value to the visited list so that we don't go back to it again
 
-
-
     #mask = np.ones((len(di_data),len(di_data[0])))
-    new_di_data = np.zeros((len(di_data),len(di_data[0])))
+    new_di_data = np.zeros((len(di_data), len(di_data[0])))
     xdata = []
     ydata = []
 
     for r in range(len(new_di_data)):
         for c in range(len(new_di_data[r])):
-            #if(mask[r][c] == 1):
+            # if(mask[r][c] == 1):
             #    new_di_data[r][c] = di_data[r][c][0] # This actually changes the depth data so, use di_data if you need the depth
             new_di_data[r][c] = di_data[r][c][0]
             if (new_di_data[r][c] > 0):
@@ -203,9 +210,9 @@ while True:
 
     for r in range(len(new_di_data)):
         for c in range(len(new_di_data[r])):
-            if(new_di_data[r][c]!= 0):
+            if(new_di_data[r][c] != 0):
                 curr_edges = 0
-                for add in range(1,8):
+                for add in range(1, 8):
                     if(new_di_data[min(len(new_di_data)-add, r+add)][c] != 0):
                         curr_edges += 1
                     if(new_di_data[max(0, r-add)][c] != 0):
@@ -223,14 +230,14 @@ while True:
                     if(new_di_data[max(0, r-add)][max(0, c-add)] != 0):
                         curr_edges += 1
                 if(curr_edges < 11):
-                    new_di_data[r][c]=0.0
+                    new_di_data[r][c] = 0.0
 
     new_di = DepthImage(new_di_data.astype(np.float32), frame=di.frame)
     if DISPLAY:
         plt.imshow(new_di._image_data(), interpolation="nearest")
         plt.show()
-    #plt.savefig("Isolated_Cable")
-    #new_di.save("Isolated_Cable.png")
+    # plt.savefig("Isolated_Cable")
+    # new_di.save("Isolated_Cable.png")
 
     # Simeon: Why four times?
 
@@ -241,61 +248,61 @@ while True:
             if(new_di_data[r][c] != 0):
                 new_di_data[r][c] = 255
     new_di_data = gaussian_filter(new_di_data, sigma=1)
-    
+
     for r in range(len(new_di_data)):
         for c in range(len(new_di_data[r])):
             if(new_di_data[r][c] != 0):
                 new_di_data[r][c] = 255
     new_di_data = gaussian_filter(new_di_data, sigma=1)
 
-    save_loc = (0,0)
+    save_loc = (0, 0)
     for r in range(len(new_di_data)):
         for c in range(len(new_di_data[r])):
             if(new_di_data[r][c] != 0):
                 new_di_data[r][c] = 255
-                save_loc = (c,r)
+                save_loc = (c, r)
     new_di_data = gaussian_filter(new_di_data, sigma=1)
 
     compress_factor = 50
-    #print(int(math.floor(len(di_data)/compress_factor)))
-    #print(int(math.floor(len(di_data[0])/compress_factor)))
+    # print(int(math.floor(len(di_data)/compress_factor)))
+    # print(int(math.floor(len(di_data[0])/compress_factor)))
     rows_comp = int(math.floor(len(di_data)/compress_factor))
     cols_comp = int(math.floor(len(di_data[0])/compress_factor))
-    compressed_map = np.zeros((rows_comp,cols_comp))
+    compressed_map = np.zeros((rows_comp, cols_comp))
     for r in range(rows_comp):
         for c in range(cols_comp):
-            for add in range(1,5):
-                    if(new_di_data[min(len(new_di_data)-add, r*compress_factor+add)][c*compress_factor] != 0):
-                        compressed_map[r][c] = 255
-                        break
-                    if(new_di_data[max(0, r*compress_factor-add)][c*compress_factor] != 0):
-                        compressed_map[r][c] = 255
-                        break
-                    if(new_di_data[r*compress_factor][min(len(new_di_data[0])-add, c*compress_factor+add)] != 0):
-                        compressed_map[r][c] = 255
-                        break
-                    if(new_di_data[r*compress_factor][max(0, c*compress_factor-add)] != 0):
-                        compressed_map[r][c] = 255
-                        break
-                    if(new_di_data[min(len(new_di_data)-add, r*compress_factor+add)][min(len(new_di_data[0])-add, c*compress_factor+add)] != 0):
-                        compressed_map[r][c] = 255
-                        break
-                    if(new_di_data[min(len(new_di_data)-add, r*compress_factor+add)][max(0, c*compress_factor-add)] != 0):
-                        compressed_map[r][c] = 255
-                        break
-                    if(new_di_data[max(0, r*compress_factor-add)][min(len(new_di_data[0])-add, c*compress_factor+add)] != 0):
-                        compressed_map[r][c] = 255
-                        break
-                    if(new_di_data[max(0, r*compress_factor-add)][max(0, c*compress_factor-add)] != 0):
-                        compressed_map[r][c] = 255
-                        break
+            for add in range(1, 5):
+                if(new_di_data[min(len(new_di_data)-add, r*compress_factor+add)][c*compress_factor] != 0):
+                    compressed_map[r][c] = 255
+                    break
+                if(new_di_data[max(0, r*compress_factor-add)][c*compress_factor] != 0):
+                    compressed_map[r][c] = 255
+                    break
+                if(new_di_data[r*compress_factor][min(len(new_di_data[0])-add, c*compress_factor+add)] != 0):
+                    compressed_map[r][c] = 255
+                    break
+                if(new_di_data[r*compress_factor][max(0, c*compress_factor-add)] != 0):
+                    compressed_map[r][c] = 255
+                    break
+                if(new_di_data[min(len(new_di_data)-add, r*compress_factor+add)][min(len(new_di_data[0])-add, c*compress_factor+add)] != 0):
+                    compressed_map[r][c] = 255
+                    break
+                if(new_di_data[min(len(new_di_data)-add, r*compress_factor+add)][max(0, c*compress_factor-add)] != 0):
+                    compressed_map[r][c] = 255
+                    break
+                if(new_di_data[max(0, r*compress_factor-add)][min(len(new_di_data[0])-add, c*compress_factor+add)] != 0):
+                    compressed_map[r][c] = 255
+                    break
+                if(new_di_data[max(0, r*compress_factor-add)][max(0, c*compress_factor-add)] != 0):
+                    compressed_map[r][c] = 255
+                    break
     max_edges = 0
-    test_locs = (0,0)
+    test_locs = (0, 0)
     for r in range(len(compressed_map)):
         for c in range(len(compressed_map[r])):
-            if(compressed_map[r][c]!= 0):
+            if(compressed_map[r][c] != 0):
                 curr_edges = 0
-                for add in range(1,2):
+                for add in range(1, 2):
                     if(compressed_map[min(len(compressed_map)-add, r+add)][c] == 0):
                         curr_edges += 1
                     if(compressed_map[max(0, r-add)][c] == 0):
@@ -313,16 +320,17 @@ while True:
                     if(compressed_map[max(0, r-add)][max(0, c-add)] == 0):
                         curr_edges += 1
                 if(curr_edges > max_edges):
-                    test_loc=(c,r)
-                    max_edges=curr_edges
+                    test_loc = (c, r)
+                    max_edges = curr_edges
     print(test_loc)
-    print("scaled: "+str((test_loc[0]*compress_factor,test_loc[1]*compress_factor)))
+    print("scaled: " +
+          str((test_loc[0]*compress_factor, test_loc[1]*compress_factor)))
     all_solns = []
     for r in range(len(compressed_map)):
         for c in range(len(compressed_map[r])):
-            if(compressed_map[r][c]!= 0):
+            if(compressed_map[r][c] != 0):
                 curr_edges = 0
-                for add in range(1,2):
+                for add in range(1, 2):
                     if(compressed_map[min(len(compressed_map)-add, r+add)][c] == 0):
                         curr_edges += 1
                     if(compressed_map[max(0, r-add)][c] == 0):
@@ -340,49 +348,49 @@ while True:
                     if(compressed_map[max(0, r-add)][max(0, c-add)] == 0):
                         curr_edges += 1
                 if(curr_edges == max_edges or curr_edges == max_edges-1 or curr_edges == max_edges-2):
-                    all_solns+=[(c,r)]
+                    all_solns += [(c, r)]
     ##rint("ALL SOLUTIONS: "+str(all_solns))
-    #for soln in all_solns:
-    scaled_test_loc = (test_loc[0]*compress_factor,test_loc[1]*compress_factor)
+    # for soln in all_solns:
+    scaled_test_loc = (test_loc[0]*compress_factor,
+                       test_loc[1]*compress_factor)
     if DISPLAY:
         plt.imshow(compressed_map, interpolation="nearest")
-        plt.show() 
+        plt.show()
     min_dist = 10000
-    candidate_rope_loc = (0,0)
+    candidate_rope_loc = (0, 0)
     for r in range(len(new_di_data)):
         for c in range(len(new_di_data[r])):
             if(di_data[r][c][0] != 0):
-                dist = np.linalg.norm(np.array([r-scaled_test_loc[1],c-scaled_test_loc[0]]))
+                dist = np.linalg.norm(
+                    np.array([r-scaled_test_loc[1], c-scaled_test_loc[0]]))
                 if (dist < min_dist):
-                    candidate_rope_loc = (c,r)
+                    candidate_rope_loc = (c, r)
                     min_dist = dist
     min_loc = candidate_rope_loc
     print("FITTED POINT: " + str(min_loc))
 
     if DISPLAY:
         plt.imshow(new_di_data, interpolation="nearest")
-        plt.show()   
-        plt.imshow(img.color.data, interpolation="nearest")
-        plt.show()  
+        plt.show()
     #new_di = DepthImage(new_di_data.astype(np.float32), frame=di.frame)
     #plt.imshow(new_di._image_data(), interpolation="nearest")
 
-    #new_di.save("edge_detection_t.png")
-    
+    # new_di.save("edge_detection_t.png")
+
     #fig2 = plt.figure()
-    #print(min_loc)
-    
-    #----------------------FIND END OF CHANNEL
+    # print(min_loc)
+
+    # ----------------------FIND END OF CHANNEL
     lower = 254
     upper = 256
-    channel_start = (0,0)
+    channel_start = (0, 0)
     max_edges = 0
 
     for r in range(len(three_mat_color)):
         for c in range(len(three_mat_color[r])):
-            if(lower< three_mat_color[r][c][0]<upper):
+            if(lower < three_mat_color[r][c][0] < upper):
                 curr_edges = 0
-                for add in range(1,5):
+                for add in range(1, 5):
                     if(lower < three_mat_color[min(len(three_mat_color)-add, r+add)][c][0] < upper):
                         curr_edges += 1
                     if(lower < three_mat_color[max(0, r-add)][c][0] < upper):
@@ -401,11 +409,12 @@ while True:
                         curr_edges += 1
                 if(curr_edges > max_edges):
                     max_edges = curr_edges
-                    channel_start = (c,r)
+                    channel_start = (c, r)
     print("CHANNEL_START: "+str(channel_start))
-    channel_cloud,_ = g.segment_channel(channel_start)
+    channel_cloud, _ = g.segment_channel(channel_start)
     transformed_channel_cloud = new_transf.apply(channel_cloud)
-    image_channel = iface.cam.intrinsics.project_to_image(transformed_channel_cloud, round_px = False) #should this be transformed_channel_cloud?
+    image_channel = iface.cam.intrinsics.project_to_image(
+        transformed_channel_cloud, round_px=False)  # should this be transformed_channel_cloud?
     image_channel_data = image_channel._image_data()
     copy_channel_data = copy.deepcopy(image_channel_data)
     if DISPLAY:
@@ -413,43 +422,43 @@ while True:
         plt.show()
     figure = plt.figure()
     plt.savefig("Point_Cloud_Channel.png")
-    #Threshold pointcloud
+    # Threshold pointcloud
     lower = 80
     upper = 255
-    
+
     for r in range(len(image_channel_data)):
-        for c  in range(len(image_channel_data[r])):
+        for c in range(len(image_channel_data[r])):
             if(new_di_data[r][c] != 0):
                 image_channel_data[r][c][0] = 0.0
                 image_channel_data[r][c][1] = 0.0
                 image_channel_data[r][c][2] = 0.0
 
-    #Finish Thresholding, now find corner to place
+    # Finish Thresholding, now find corner to place
     max_edges = 0
     best_location = ()
     for r in range(len(image_channel_data)):
         for c in range(len(image_channel_data[r])):
-            if(image_channel_data[r][c][0] != 0 ):
+            if(image_channel_data[r][c][0] != 0):
                 curr_edges = 0
-                for add in range(1,5):
+                for add in range(1, 5):
                     if(image_channel_data[min(len(new_di_data)-add, r+add)][c][0] == 0):
                         curr_edges += 1
                     if(image_channel_data[max(0, r-add)][c][0] == 0):
                         curr_edges += 1
-                    if(image_channel_data[r][min(len(new_di_data[0])-add, c+add)][0]  == 0):
+                    if(image_channel_data[r][min(len(new_di_data[0])-add, c+add)][0] == 0):
                         curr_edges += 1
-                    if(image_channel_data[r][max(0, c-add)][0]  == 0):
+                    if(image_channel_data[r][max(0, c-add)][0] == 0):
                         curr_edges += 1
-                    if(image_channel_data[min(len(new_di_data)-add, r+add)][min(len(new_di_data[0])-add, c+add)][0]  == 0):
+                    if(image_channel_data[min(len(new_di_data)-add, r+add)][min(len(new_di_data[0])-add, c+add)][0] == 0):
                         curr_edges += 1
-                    if(image_channel_data[min(len(new_di_data)-add, r+add)][max(0, c-add)][0]  == 0):
+                    if(image_channel_data[min(len(new_di_data)-add, r+add)][max(0, c-add)][0] == 0):
                         curr_edges += 1
-                    if(image_channel_data[max(0, r-add)][min(len(new_di_data[0])-add, c+add)][0]  == 0):
+                    if(image_channel_data[max(0, r-add)][min(len(new_di_data[0])-add, c+add)][0] == 0):
                         curr_edges += 1
-                    if(image_channel_data[max(0, r-add)][max(0, c-add)][0]  == 0):
+                    if(image_channel_data[max(0, r-add)][max(0, c-add)][0] == 0):
                         curr_edges += 1
                 if(curr_edges > max_edges):
-                    best_location = (c,r)
+                    best_location = (c, r)
                     max_edges = curr_edges
     print(best_location)
     dist_tolerance = 400
@@ -463,34 +472,35 @@ while True:
     best_locations = []
     for r in range(len(image_channel_data)):
         for c in range(len(image_channel_data[r])):
-            if(image_channel_data[r][c][0] != 0 ):
+            if(image_channel_data[r][c][0] != 0):
                 curr_edges = 0
-                for add in range(1,3):
+                for add in range(1, 3):
                     if(image_channel_data[min(len(new_di_data)-add, r+add)][c][0] == 0):
                         curr_edges += 1
                     if(image_channel_data[max(0, r-add)][c][0] == 0):
                         curr_edges += 1
-                    if(image_channel_data[r][min(len(new_di_data[0])-add, c+add)][0]  == 0):
+                    if(image_channel_data[r][min(len(new_di_data[0])-add, c+add)][0] == 0):
                         curr_edges += 1
-                    if(image_channel_data[r][max(0, c-add)][0]  == 0):
+                    if(image_channel_data[r][max(0, c-add)][0] == 0):
                         curr_edges += 1
-                    if(image_channel_data[min(len(new_di_data)-add, r+add)][min(len(new_di_data[0])-add, c+add)][0]  == 0):
+                    if(image_channel_data[min(len(new_di_data)-add, r+add)][min(len(new_di_data[0])-add, c+add)][0] == 0):
                         curr_edges += 1
-                    if(image_channel_data[min(len(new_di_data)-add, r+add)][max(0, c-add)][0]  == 0):
+                    if(image_channel_data[min(len(new_di_data)-add, r+add)][max(0, c-add)][0] == 0):
                         curr_edges += 1
-                    if(image_channel_data[max(0, r-add)][min(len(new_di_data[0])-add, c+add)][0]  == 0):
+                    if(image_channel_data[max(0, r-add)][min(len(new_di_data[0])-add, c+add)][0] == 0):
                         curr_edges += 1
-                    if(image_channel_data[max(0, r-add)][max(0, c-add)][0]  == 0):
+                    if(image_channel_data[max(0, r-add)][max(0, c-add)][0] == 0):
                         curr_edges += 1
                 if(curr_edges > max_edges):
-                    best_locations += [(c,r)]
+                    best_locations += [(c, r)]
                     #max_edges = curr_edges
     print(best_locations)
     min_dist = 0
     for loc in best_locations:
-        if(np.linalg.norm(np.array([loc[1]-best_location[1],loc[0]-best_location[0]])) > min_dist):
-                min_dist = np.linalg.norm(np.array([loc[1]-best_location[1],loc[0]-best_location[0]]))
-                best_location = loc
+        if(np.linalg.norm(np.array([loc[1]-best_location[1], loc[0]-best_location[0]])) > min_dist):
+            min_dist = np.linalg.norm(
+                np.array([loc[1]-best_location[1], loc[0]-best_location[0]]))
+            best_location = loc
     print("CHANNEL PLACE: "+str(best_location))
     if DISPLAY:
         plt.imshow(image_channel_data, interpolation="nearest")
@@ -499,34 +509,34 @@ while True:
     if DISPLAY:
         plt.imshow(copy_channel_data, interpolation="nearest")
         plt.show()
-    img_skeleton = cv2.cvtColor(copy_channel_data,cv2.COLOR_RGB2GRAY)
+    img_skeleton = cv2.cvtColor(copy_channel_data, cv2.COLOR_RGB2GRAY)
     features = cv2.goodFeaturesToTrack(img_skeleton, 2, 0.01, 200)
-    for (x,y) in features[:,0].astype("int0"):
-        cv2.circle(img_skeleton,(x,y),27,127,-1)
+    for (x, y) in features[:, 0].astype("int0"):
+        cv2.circle(img_skeleton, (x, y), 27, 127, -1)
     print(features)
     if DISPLAY:
         plt.imshow(img_skeleton)
     endpoints = [x[0] for x in features]
-    
-    #plt.savefig("Channel_Remove_Rope.png")
+
+    # plt.savefig("Channel_Remove_Rope.png")
     #plt.imshow(img.color.data, interpolation="nearest")
-    #plt.show()
-    #----------------------FIND END OF CHANNEL
+    # plt.show()
+    # ----------------------FIND END OF CHANNEL
 
     #q = input("EXIT OUT \n")
-    #NEW ---------------------------------------------------------------------------------
-    #pick,place=click_points(img) #left is pick point, right is place point
+    # NEW ---------------------------------------------------------------------------------
+    # pick,place=click_points(img) #left is pick point, right is place point
     pick = min_loc
 
-    #Use estimation
+    # Use estimation
     place = best_location
-    #Use left side
+    # Use left side
     if(endpoints[0][0] < endpoints[1][0]):
         place = endpoints[0]
     else:
         place = endpoints[1]
     print("ACTUAL PLACE: "+str(place))
-    #place = FILL IN HERE
+    # place = FILL IN HERE
     # VAINAVI: will need to observe and crop image most likely
     #action = policy.get_action(img.color._data)
     #pick, place = act_to_kps(action)
@@ -535,67 +545,73 @@ while True:
 
     # Convert to world coordinates:
     xind, yind = pick
-    lin_ind = int(img.depth.ij_to_linear(np.array(xind),np.array(yind)))
+    lin_ind = int(img.depth.ij_to_linear(np.array(xind), np.array(yind)))
     xind2, yind2 = place
-    lin_ind2 = int(img.depth.ij_to_linear(np.array(xind2),np.array(yind2)))
+    lin_ind2 = int(img.depth.ij_to_linear(np.array(xind2), np.array(yind2)))
 
     points_3d = iface.cam.intrinsics.deproject(img.depth)
-    point=iface.T_PHOXI_BASE*points_3d[lin_ind]
+    point = iface.T_PHOXI_BASE*points_3d[lin_ind]
     point = [p for p in point]
-    #print(point)
-    #point[2] += 0.005 # manually adjust height a tiny bit
+    # print(point)
+    # point[2] += 0.005 # manually adjust height a tiny bit
     place_point = iface.T_PHOXI_BASE*points_3d[lin_ind2]
 
     # point conversion
-    xind, yind  = place
-    lin_ind = int(img.depth.ij_to_linear(np.array(xind),np.array(yind)))
-    place_point=iface.T_PHOXI_BASE*points_3d[lin_ind]
+    xind, yind = place
+    lin_ind = int(img.depth.ij_to_linear(np.array(xind), np.array(yind)))
+    place_point = iface.T_PHOXI_BASE*points_3d[lin_ind]
 
-    xind, yind  = endpoints[0]
-    lin_ind = int(img.depth.ij_to_linear(np.array(xind),np.array(yind)))
-    endpoint_1_point =iface.T_PHOXI_BASE*points_3d[lin_ind]
+    xind, yind = endpoints[0]
+    lin_ind = int(img.depth.ij_to_linear(np.array(xind), np.array(yind)))
+    endpoint_1_point = iface.T_PHOXI_BASE*points_3d[lin_ind]
 
     xind, yind = endpoints[1]
-    lin_ind = int(img.depth.ij_to_linear(np.array(xind),np.array(yind)))
-    endpoint_2_point =iface.T_PHOXI_BASE*points_3d[lin_ind]
-    
+    lin_ind = int(img.depth.ij_to_linear(np.array(xind), np.array(yind)))
+    endpoint_2_point = iface.T_PHOXI_BASE*points_3d[lin_ind]
+
     print("TESTING")
     print(place_point)
     print(endpoint_1_point)
     print(endpoint_2_point)
 
-    new_place_point_data = np.array([place_point.y, place_point.x, place_point.z])
+    new_place_point_data = np.array(
+        [place_point.y, place_point.x, place_point.z])
     new_place_point = Point(new_place_point_data, frame=place_point.frame)
 
-    new_endpoint_1_point_data = np.array([endpoint_1_point.y, endpoint_1_point.x, endpoint_1_point.z])
-    new_endpoint_1_point = Point(new_endpoint_1_point_data, frame=endpoint_1_point.frame)
+    new_endpoint_1_point_data = np.array(
+        [endpoint_1_point.y, endpoint_1_point.x, endpoint_1_point.z])
+    new_endpoint_1_point = Point(
+        new_endpoint_1_point_data, frame=endpoint_1_point.frame)
 
-    new_endpoint_2_point_data = np.array([endpoint_2_point.y, endpoint_2_point.x, endpoint_2_point.z])
-    new_endpoint_2_point = Point(new_endpoint_2_point_data, frame=endpoint_2_point.frame)
+    new_endpoint_2_point_data = np.array(
+        [endpoint_2_point.y, endpoint_2_point.x, endpoint_2_point.z])
+    new_endpoint_2_point = Point(
+        new_endpoint_2_point_data, frame=endpoint_2_point.frame)
 
-    #FIND THE PRINCIPLE AXIS FOR THE GRIPPER AND ROTATE, THEN TAKE ACTION
+    # FIND THE PRINCIPLE AXIS FOR THE GRIPPER AND ROTATE, THEN TAKE ACTION
+    """
     principle_axis = g.princ_axis(rope_cloud)
-    grasp_poses= g.generate_grasps(principle_axis,pick, g.L_TCP, point[2])
-    grasp_poses= g.filter_unreachable(grasp_poses,tcp)
-    grasp_pose  = g.select_single_grasp(grasp_poses,tcp)
+    grasp_poses = g.generate_grasps(principle_axis, np.array(
+        [-0.5810662, -1.34913424,  0.73567095]), iface.L_TCP, point[2])
+    grasp_poses_filter = g.filter_unreachable(grasp_poses, iface.L_TCP)
+    grasp_pose = g.select_single_grasp(grasp_poses_filter, iface.L_TCP)
     if grasp_pose is None:
-        raise GraspException("No collision free grasps found")
-        #at the end, sanity check that z axis is still facing negative
-    if(grasp_pose.rotation[:,2].dot([0,0,1])>0):
+        print("SELECTED THE FIRST POSSIBLE GRASP")
+        grasp_pose = grasp_poses[0]
+        #raise GraspException("No collision free grasps found")
+        # at the end, sanity check that z axis is still facing negative
+    if(grasp_pose.rotation[:, 2].dot([0, 0, 1]) > 0):
         print("Warning: upward gripper grasp returned")
         #raise Exception("Grasp calculated returned a gripper orientation with the gripper pointing upwards")
     rot_Grasp = Grasp(grasp_pose)
-    iface.grasp(rot_Grasp,None)
+    iface.grasp(rot_Grasp, None)
+    """
     take_action(point, place_point)
 
+    # PACKING __________________________________________________
 
-
-
-    #PACKING __________________________________________________
-    
-    
-    push_action_endpoints(new_place_point, [new_endpoint_1_point,new_endpoint_2_point], iface)
+    push_action_endpoints(
+        new_place_point, [new_endpoint_1_point, new_endpoint_2_point], iface)
     break
-    #g.close()
+    # g.close()
 print("Done with script, can end")
-

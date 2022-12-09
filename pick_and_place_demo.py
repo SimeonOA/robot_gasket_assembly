@@ -6,7 +6,7 @@ import cv2
 from scipy.ndimage.filters import gaussian_filter
 from grasp import Grasp, GraspSelector
 from tcps import *
-from autolab_core import RigidTransform, RgbdImage, DepthImage, ColorImage, CameraIntrinsics, Point
+from autolab_core import RigidTransform, RgbdImage, DepthImage, ColorImage, CameraIntrinsics, Point, PointCloud
 import numpy as np
 import math
 import copy
@@ -24,7 +24,7 @@ behavior_cloning_path = os.path.dirname(os.path.abspath(
 sys.path.insert(0, behavior_cloning_path)
 #from analysis import CornerPullingBCPolicy
 
-DISPLAY = False
+DISPLAY = True
 
 
 def click_points(img):
@@ -55,8 +55,10 @@ def click_points(img):
 
 # SPEED=(.5,6*np.pi)
 SPEED = (.025, 0.3*np.pi)
+# iface = Interface("1703005", METAL_GRIPPER.as_frames(YK.l_tcp_frame, YK.l_tip_frame),
+#                   ABB_WHITE.as_frames(YK.r_tcp_frame, YK.r_tip_frame), speed=SPEED)
 iface = Interface("1703005", METAL_GRIPPER.as_frames(YK.l_tcp_frame, YK.l_tip_frame),
-                  ABB_WHITE.as_frames(YK.r_tcp_frame, YK.r_tip_frame), speed=SPEED)
+                  METAL_GRIPPER.as_frames(YK.r_tcp_frame, YK.r_tip_frame), speed=SPEED)
 
 
 def act_to_kps(act):
@@ -91,10 +93,10 @@ def take_action(pick, place):
     time.sleep(1)
     iface.set_speed((.1, 1))
     delta = [place[i] - pick[i] for i in range(3)]
-    change_height = 0.01
+    change_height = 0.002
     delta[2] = delta[2] + change_height
     iface.go_delta(l_trans=delta)
-    iface.go_delta(l_trans=[0, 0, -0.05])
+    #iface.go_delta(l_trans=[0, 0, -0.06])
     iface.open_grippers()
     iface.home()
     iface.sync()
@@ -130,13 +132,13 @@ while True:
     delete_later = []
     max_score = 0
     max_scoring_loc = (0, 0)
-    highlight_upper = 254
-    highlight_lower = 210
+    highlight_upper = 256
+    highlight_lower = 254
     for r in range(len(three_mat_color)):
         for c in range(len(three_mat_color[r])):
             if(highlight_lower < three_mat_color[r][c][0] <= highlight_upper and 210 < three_mat_color[r][c][1] <= highlight_upper and 210 < three_mat_color[r][c][2] <= highlight_upper):
                 curr_score = 0
-                for add in range(1, 20):
+                for add in range(1, 10):
                     if(highlight_lower < three_mat_color[min(len(three_mat_color)-add, r+add)][c][0] <= highlight_upper):
                         curr_score += 1
                     if(highlight_lower < three_mat_color[max(0, r-add)][c][0] <= highlight_upper):
@@ -161,6 +163,50 @@ while True:
                 delete_later += [(c, r)]
             # if(c == 500):
             #    print("X: " + str(c)+" Y: "+str(r)+" R: "+str(three_mat_color[r][c][0]) + " G: "+str(three_mat_color[r][c][1]) + " B:" +str(three_mat_color[r][c][2]) + " AVG: ")
+    copy_color = copy.deepcopy(three_mat_color)
+    remove_glare_tolerance = 170
+    remove_glare_tolerance_2 = 120
+    for r in range(len(copy_color)):
+        for c in range(len(copy_color[r])):
+            dist = dist = np.linalg.norm(
+                    np.array([r-max_scoring_loc[1], c-max_scoring_loc[0]]))
+            if dist < remove_glare_tolerance:
+                copy_color[r][c][0] = 0.0
+                copy_color[r][c][1] = 0.0
+                copy_color[r][c][2] = 0.0
+            if dist < remove_glare_tolerance_2:
+                delete_later+= [(c, r)]
+    highlight_lower = 200
+    highlight_upper = 255
+    max_score = 0
+    max_scoring_loc = (0,0)
+    for r in range(len(copy_color)):
+        for c in range(len(copy_color[r])):
+            if(highlight_lower < copy_color[r][c][0] <= highlight_upper and 210 < copy_color[r][c][1] <= highlight_upper and 210 < copy_color[r][c][2] <= highlight_upper):
+                curr_score = 0
+                for add in range(1, 13):
+                    if(highlight_lower < copy_color[min(len(copy_color)-add, r+add)][c][0] <= highlight_upper):
+                        curr_score += 1
+                    if(highlight_lower < copy_color[max(0, r-add)][c][0] <= highlight_upper):
+                        curr_score += 1
+                    if(highlight_lower < copy_color[r][min(len(copy_color[0])-add, c+add)][0] <= highlight_upper):
+                        curr_score += 1
+                    if(highlight_lower < copy_color[r][max(0, c-add)][0] <= highlight_upper):
+                        curr_score += 1
+                    if(highlight_lower < copy_color[min(len(copy_color)-add, r+add)][min(len(copy_color[0])-add, c+add)][0] <= highlight_upper):
+                        curr_score += 1
+                    if(highlight_lower < copy_color[min(len(copy_color)-add, r+add)][max(0, c-add)][0] <= highlight_upper):
+                        curr_score += 1
+                    if(highlight_lower < copy_color[max(0, r-add)][min(len(copy_color[0])-add, c+add)][0] <= highlight_upper):
+                        curr_score += 1
+                    if(highlight_lower < copy_color[max(0, r-add)][max(0, c-add)][0] <= highlight_upper):
+                        curr_score += 1
+                if(curr_score > max_score):
+                    max_scoring_loc = (c, r)
+                    max_score = curr_score
+    if DISPLAY:
+        plt.imshow(copy_color, interpolation="nearest")
+        plt.show()
     loc = max_scoring_loc
     print("Starting segmenet_cable pt: "+str(max_scoring_loc))
     # print(loc)
@@ -263,38 +309,43 @@ while True:
                 save_loc = (c, r)
     new_di_data = gaussian_filter(new_di_data, sigma=1)
 
-    compress_factor = 50
+    compress_factor = 30
     # print(int(math.floor(len(di_data)/compress_factor)))
     # print(int(math.floor(len(di_data[0])/compress_factor)))
     rows_comp = int(math.floor(len(di_data)/compress_factor))
     cols_comp = int(math.floor(len(di_data[0])/compress_factor))
     compressed_map = np.zeros((rows_comp, cols_comp))
+
     for r in range(rows_comp):
+        if r != 0:
+                    r = float(r) - 0.5
         for c in range(cols_comp):
-            for add in range(1, 5):
-                if(new_di_data[min(len(new_di_data)-add, r*compress_factor+add)][c*compress_factor] != 0):
-                    compressed_map[r][c] = 255
+            if c != 0:
+                    c = float(c) - 0.5
+            for add in range(1, 8):
+                if(new_di_data[int(min(len(new_di_data)-add, r*compress_factor+add))][int(c*compress_factor)] != 0):
+                    compressed_map[int(r)][int(c)] = 255
                     break
-                if(new_di_data[max(0, r*compress_factor-add)][c*compress_factor] != 0):
-                    compressed_map[r][c] = 255
+                if(new_di_data[int(max(0, r*compress_factor-add))][int(c*compress_factor)] != 0):
+                    compressed_map[int(r)][int(c)] = 255
                     break
-                if(new_di_data[r*compress_factor][min(len(new_di_data[0])-add, c*compress_factor+add)] != 0):
-                    compressed_map[r][c] = 255
+                if(new_di_data[int(r*compress_factor)][int(min(len(new_di_data[0])-add, c*compress_factor+add))] != 0):
+                    compressed_map[int(r)][int(c)] = 255
                     break
-                if(new_di_data[r*compress_factor][max(0, c*compress_factor-add)] != 0):
-                    compressed_map[r][c] = 255
+                if(new_di_data[int(r*compress_factor)][int(max(0, c*compress_factor-add))] != 0):
+                    compressed_map[int(r)][int(c)] = 255
                     break
-                if(new_di_data[min(len(new_di_data)-add, r*compress_factor+add)][min(len(new_di_data[0])-add, c*compress_factor+add)] != 0):
-                    compressed_map[r][c] = 255
+                if(new_di_data[int(min(len(new_di_data)-add, r*compress_factor+add))][int(min(len(new_di_data[0])-add, c*compress_factor+add))] != 0):
+                    compressed_map[int(r)][int(c)] = 255
                     break
-                if(new_di_data[min(len(new_di_data)-add, r*compress_factor+add)][max(0, c*compress_factor-add)] != 0):
-                    compressed_map[r][c] = 255
+                if(new_di_data[int(min(len(new_di_data)-add, r*compress_factor+add))][int(max(0, c*compress_factor-add))] != 0):
+                    compressed_map[int(r)][int(c)] = 255
                     break
-                if(new_di_data[max(0, r*compress_factor-add)][min(len(new_di_data[0])-add, c*compress_factor+add)] != 0):
-                    compressed_map[r][c] = 255
+                if(new_di_data[int(max(0, r*compress_factor-add))][int(min(len(new_di_data[0])-add, c*compress_factor+add))] != 0):
+                    compressed_map[int(r)][int(c)] = 255
                     break
-                if(new_di_data[max(0, r*compress_factor-add)][max(0, c*compress_factor-add)] != 0):
-                    compressed_map[r][c] = 255
+                if(new_di_data[int(max(0, r*compress_factor-add))][int(max(0, c*compress_factor-add))] != 0):
+                    compressed_map[int(r)][int(c)] = 255
                     break
     max_edges = 0
     test_locs = (0, 0)
@@ -326,33 +377,67 @@ while True:
     print("scaled: " +
           str((test_loc[0]*compress_factor, test_loc[1]*compress_factor)))
     all_solns = []
-    for r in range(len(compressed_map)):
-        for c in range(len(compressed_map[r])):
-            if(compressed_map[r][c] != 0):
-                curr_edges = 0
-                for add in range(1, 2):
-                    if(compressed_map[min(len(compressed_map)-add, r+add)][c] == 0):
-                        curr_edges += 1
-                    if(compressed_map[max(0, r-add)][c] == 0):
-                        curr_edges += 1
-                    if(compressed_map[r][min(len(compressed_map[0])-add, c+add)] == 0):
-                        curr_edges += 1
-                    if(compressed_map[r][max(0, c-add)] == 0):
-                        curr_edges += 1
-                    if(compressed_map[min(len(compressed_map)-add, r+add)][min(len(compressed_map[0])-add, c+add)] == 0):
-                        curr_edges += 1
-                    if(compressed_map[min(len(compressed_map)-add, r+add)][max(0, c-add)] == 0):
-                        curr_edges += 1
-                    if(compressed_map[max(0, r-add)][min(len(compressed_map[0])-add, c+add)] == 0):
-                        curr_edges += 1
-                    if(compressed_map[max(0, r-add)][max(0, c-add)] == 0):
-                        curr_edges += 1
-                if(curr_edges == max_edges or curr_edges == max_edges-1 or curr_edges == max_edges-2):
-                    all_solns += [(c, r)]
-    ##rint("ALL SOLUTIONS: "+str(all_solns))
+    tightness = 0
+    while(True):
+        all_solns = []
+        for r in range(len(compressed_map)):
+            for c in range(len(compressed_map[r])):
+                if(compressed_map[r][c] != 0):
+                    curr_edges = 0
+                    for add in range(1, 2):
+                        if(compressed_map[min(len(compressed_map)-add, r+add)][c] == 0):
+                            curr_edges += 1
+                        if(compressed_map[max(0, r-add)][c] == 0):
+                            curr_edges += 1
+                        if(compressed_map[r][min(len(compressed_map[0])-add, c+add)] == 0):
+                            curr_edges += 1
+                        if(compressed_map[r][max(0, c-add)] == 0):
+                            curr_edges += 1
+                        if(compressed_map[min(len(compressed_map)-add, r+add)][min(len(compressed_map[0])-add, c+add)] == 0):
+                            curr_edges += 1
+                        if(compressed_map[min(len(compressed_map)-add, r+add)][max(0, c-add)] == 0):
+                            curr_edges += 1
+                        if(compressed_map[max(0, r-add)][min(len(compressed_map[0])-add, c+add)] == 0):
+                            curr_edges += 1
+                        if(compressed_map[max(0, r-add)][max(0, c-add)] == 0):
+                            curr_edges += 1
+                    if(max_edges-tightness <= curr_edges <= max_edges+tightness):
+                        all_solns += [(c, r)]
+        print("ALL SOLUTIONS TIGHTNESS "+str(tightness)+ ": "+str(all_solns))
+        #if(4 <= len(all_solns)):
+        #    break
+        if(len(all_solns) >= 2):
+            min_y = 100000
+            max_y = 0
+            for soln in all_solns:
+                if soln[1] < min_y:
+                    min_y = soln[1]
+                if soln[1] > max_y:
+                    max_y = soln[1]
+            if (max_y-min_y) > 2:
+                break
+        else:
+            tightness += 1
+    origin_x = len(compressed_map)/4
+    origin_y = len(compressed_map[0])/2
+    min_dist = 100000000
+    min_all_solns = (0,0)
+    for soln in all_solns:
+        dist = np.linalg.norm(
+                    np.array([origin_x-soln[1], origin_y-soln[0]]))
+        if dist < min_dist:
+            min_dist = dist
+            min_all_solns = soln
+    #if(3 <= len(all_solns_tight) <= 4):
+
     # for soln in all_solns:
-    scaled_test_loc = (test_loc[0]*compress_factor,
-                       test_loc[1]*compress_factor)
+    
+    scaled_test_loc = [min_all_solns[0]*compress_factor,
+                       min_all_solns[1]*compress_factor]
+    if(scaled_test_loc[0] != 0):
+        scaled_test_loc[0] = scaled_test_loc[0] - int(compress_factor/2)
+    if(scaled_test_loc[1] != 0):
+        scaled_test_loc[1] = scaled_test_loc[1] - int(compress_factor/2)
     if DISPLAY:
         plt.imshow(compressed_map, interpolation="nearest")
         plt.show()
@@ -390,7 +475,7 @@ while True:
         for c in range(len(three_mat_color[r])):
             if(lower < three_mat_color[r][c][0] < upper):
                 curr_edges = 0
-                for add in range(1, 5):
+                for add in range(1, 11):
                     if(lower < three_mat_color[min(len(three_mat_color)-add, r+add)][c][0] < upper):
                         curr_edges += 1
                     if(lower < three_mat_color[max(0, r-add)][c][0] < upper):
@@ -417,9 +502,9 @@ while True:
         transformed_channel_cloud, round_px=False)  # should this be transformed_channel_cloud?
     image_channel_data = image_channel._image_data()
     copy_channel_data = copy.deepcopy(image_channel_data)
-    if DISPLAY:
-        plt.imshow(image_channel_data, interpolation="nearest")
-        plt.show()
+    #if DISPLAY:
+    #    plt.imshow(image_channel_data, interpolation="nearest")
+    #    plt.show()
     figure = plt.figure()
     plt.savefig("Point_Cloud_Channel.png")
     # Threshold pointcloud
@@ -502,9 +587,9 @@ while True:
                 np.array([loc[1]-best_location[1], loc[0]-best_location[0]]))
             best_location = loc
     print("CHANNEL PLACE: "+str(best_location))
-    if DISPLAY:
-        plt.imshow(image_channel_data, interpolation="nearest")
-        plt.show()
+    #if DISPLAY:
+    #    plt.imshow(image_channel_data, interpolation="nearest")
+    #    plt.show()
     #img_skeleton = np.array(image_channel_data)
     if DISPLAY:
         plt.imshow(copy_channel_data, interpolation="nearest")
@@ -514,8 +599,8 @@ while True:
     for (x, y) in features[:, 0].astype("int0"):
         cv2.circle(img_skeleton, (x, y), 27, 127, -1)
     print(features)
-    if DISPLAY:
-        plt.imshow(img_skeleton)
+    #if DISPLAY:
+    #    plt.imshow(img_skeleton)
     endpoints = [x[0] for x in features]
 
     # plt.savefig("Channel_Remove_Rope.png")
@@ -553,7 +638,7 @@ while True:
     point = iface.T_PHOXI_BASE*points_3d[lin_ind]
     point = [p for p in point]
     # print(point)
-    # point[2] += 0.005 # manually adjust height a tiny bit
+    point[2] -= 0.0025 # manually adjust height a tiny bit
     place_point = iface.T_PHOXI_BASE*points_3d[lin_ind2]
 
     # point conversion
@@ -570,9 +655,9 @@ while True:
     endpoint_2_point = iface.T_PHOXI_BASE*points_3d[lin_ind]
 
     print("TESTING")
-    print(place_point)
-    print(endpoint_1_point)
-    print(endpoint_2_point)
+    #print(place_point)
+    #print(endpoint_1_point)
+    #print(endpoint_2_point)
 
     new_place_point_data = np.array(
         [place_point.y, place_point.x, place_point.z])
@@ -590,22 +675,66 @@ while True:
 
     # FIND THE PRINCIPLE AXIS FOR THE GRIPPER AND ROTATE, THEN TAKE ACTION
     """
-    principle_axis = g.princ_axis(rope_cloud)
+    rope_cloud_data_x = rope_cloud.x_coords
+    rope_cloud_data_y = rope_cloud.y_coords
+    rope_cloud_data_z = rope_cloud.z_coords
+    tolerance = 0.23
+    new_rope_cloud_data_x = []
+    new_rope_cloud_data_y = []
+    new_rope_cloud_data_z = []
+    for count in range(len(rope_cloud_data_x)):
+        dist = np.linalg.norm(np.array([rope_cloud_data_x[count]-point[0], rope_cloud_data_x[count]-point[1]]))
+        #print("CURR DIST: "+str(dist))
+        if dist < tolerance:
+            new_rope_cloud_data_x += [rope_cloud_data_x[count]]
+            new_rope_cloud_data_y += [rope_cloud_data_y[count]]
+            new_rope_cloud_data_z += [rope_cloud_data_z[count]]
+    new_rope_cloud_data_x = np.array(new_rope_cloud_data_x)
+    new_rope_cloud_data_y = np.array(new_rope_cloud_data_y)
+    new_rope_cloud_data_z = np.array(new_rope_cloud_data_z)
+
+    new_rope_cloud = PointCloud(np.array([new_rope_cloud_data_x,new_rope_cloud_data_y,new_rope_cloud_data_z]), frame=rope_cloud.frame)
+
+    transformed_new_rope_cloud = new_transf.apply(new_rope_cloud)
+    di_2 = iface.cam.intrinsics.project_to_image(
+        transformed_new_rope_cloud, round_px=False)
+    if DISPLAY:
+        plt.imshow(di_2._image_data(), interpolation="nearest")
+        plt.show()
+    principle_axis = g.princ_axis(new_rope_cloud)
+    print("PRINCIPLE AXIS")
+    print(principle_axis)
+    R = np.matrix([[0, -1, 0],[1,0,0], [0,0,1]])
+    principle_axis = np.matmul(R,np.vstack(principle_axis))
+    print(principle_axis)
+    print(principle_axis.item((0,0)))
+    principle_axis = np.array([principle_axis.item((0,0)),principle_axis.item((1,0)),principle_axis.item((2,0))])
+    print("ROTATED AXIS: " + str(principle_axis))
+    #principle_axis[1] = 0.5
     grasp_poses = g.generate_grasps(principle_axis, np.array(
         [-0.5810662, -1.34913424,  0.73567095]), iface.L_TCP, point[2])
     grasp_poses_filter = g.filter_unreachable(grasp_poses, iface.L_TCP)
     grasp_pose = g.select_single_grasp(grasp_poses_filter, iface.L_TCP)
     if grasp_pose is None:
-        print("SELECTED THE FIRST POSSIBLE GRASP")
-        grasp_pose = grasp_poses[0]
+       
+        count = 0
+        print("SELECTED THE "+str(count)+"'th POSSIBLE GRASP")
+        while(count < len(grasp_poses)):
+            grasp_pose = grasp_poses[count]
+            rot_Grasp = Grasp(grasp_pose)
+            try:
+                iface.grasp(rot_Grasp, None)
+                break
+            except:
+                count+=1
         #raise GraspException("No collision free grasps found")
         # at the end, sanity check that z axis is still facing negative
-    if(grasp_pose.rotation[:, 2].dot([0, 0, 1]) > 0):
-        print("Warning: upward gripper grasp returned")
-        #raise Exception("Grasp calculated returned a gripper orientation with the gripper pointing upwards")
-    rot_Grasp = Grasp(grasp_pose)
-    iface.grasp(rot_Grasp, None)
+    #if(grasp_pose.rotation[:, 2].dot([0, 0, 1]) > 0):
+    #    print("Warning: upward gripper grasp returned")
+    #    #raise Exception("Grasp calculated returned a gripper orientation with the gripper pointing upwards")
+    
     """
+    # START PICK AND PLACE ___________________________________
     take_action(point, place_point)
 
     # PACKING __________________________________________________

@@ -82,30 +82,60 @@ def push_action_endpoints(pick,endpoints,iface):
     pick_temp = copy.deepcopy(start)
     pick_temp2 = copy.deepcopy(start)
     interval_scaling = 0.02
-    num = 25
+    num = 31
+    left_homed = False
     while num > 0:
         print("Push Number", num, " Coord: ", pick_temp)
-        iface.go_cartesian(l_targets=[RigidTransform(translation=pick_temp, rotation=Interface.GRIP_DOWN_R,
-            from_frame = YK.l_tcp_frame, to_frame = 'base_link')], nwiggles=(10,10),rot=(.0,.0))
-        time.sleep(1)
-        iface.go_delta(l_trans=[0,0,0.1]) # lift
+        if pick_temp[1] >= 0.01090098:
+            iface.go_cartesian(l_targets=[RigidTransform(translation=pick_temp, rotation=Interface.GRIP_DOWN_R,
+                from_frame = YK.l_tcp_frame, to_frame = 'base_link')], nwiggles=(10,10),rot=(.0,.0))
+            time.sleep(0.25)
+            iface.go_delta(l_trans=[0,0,0.1]) # lift
+        else:
+            if not left_homed:
+                pick_temp[0] += 0.01
+                iface.home_left()
+                left_homed = True
+                iface.go_cartesian(r_targets=[RigidTransform(translation=pick_temp + np.array([0, 0, 0.05]), rotation=Interface.GRIP_DOWN_R,
+                    from_frame = YK.r_tcp_frame, to_frame = 'base_link')], nwiggles=(10,10),rot=(.0,.0))
+            iface.go_cartesian(r_targets=[RigidTransform(translation=pick_temp, rotation=Interface.GRIP_DOWN_R,
+                from_frame = YK.r_tcp_frame, to_frame = 'base_link')], nwiggles=(10,10),rot=(.0,.0))
+            time.sleep(0.25)
+            iface.go_delta(r_trans=[0,0,0.1]) # lift
+
         pick_temp[0] += move_vector[0]*interval_scaling
         pick_temp[1] += move_vector[1]*interval_scaling
         num -= 1 
         print(pick_temp)
         print(num)
 
-    num2 = 25
+    iface.home_right()
+    num2 = 31
+    left_homed = False
     while num2 > 0:
         print("Push Number", num2)
-        iface.go_cartesian(l_targets=[RigidTransform(translation=pick_temp2, rotation=Interface.GRIP_DOWN_R,
-            from_frame = YK.l_tcp_frame, to_frame = 'base_link')], nwiggles=(10,10),rot=(.0,.0))
-        time.sleep(1)
-        iface.go_delta(l_trans=[0,0,0.1]) # lift
+        if pick_temp2[1] >= 0.01090098:
+            iface.go_cartesian(l_targets=[RigidTransform(translation=pick_temp2, rotation=Interface.GRIP_DOWN_R,
+                from_frame = YK.l_tcp_frame, to_frame = 'base_link')], nwiggles=(10,10),rot=(.0,.0))
+            time.sleep(1)
+            iface.go_delta(l_trans=[0,0,0.1]) # lift
+        else:
+            if not left_homed:
+                pick_temp[0] += 0.01
+                iface.home_left()
+                left_homed = True
+                iface.go_cartesian(r_targets=[RigidTransform(translation=pick_temp2 + np.array([0, 0, 0.05]), rotation=Interface.GRIP_DOWN_R,
+                    from_frame = YK.r_tcp_frame, to_frame = 'base_link')], nwiggles=(10,10),rot=(.0,.0))
+            iface.go_cartesian(r_targets=[RigidTransform(translation=pick_temp2, rotation=Interface.GRIP_DOWN_R,
+                from_frame = YK.r_tcp_frame, to_frame = 'base_link')], nwiggles=(10,10),rot=(.0,.0))
+            time.sleep(1)
+            iface.go_delta(r_trans=[0,0,0.1]) # lift
+
         pick_temp2[0] += move_vector[0]*interval_scaling
         pick_temp2[1] += move_vector[1]*interval_scaling
         num2 -= 1 
         print(pick_temp2)
+    iface.home()
 
     #handle the actual grabbing motion
     #l_grasp=None

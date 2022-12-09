@@ -67,10 +67,23 @@ class Interface:
 
     def home(self):
         try:
-            print("here")
             self.go_config_plan(self.L_HOME_STATE,self.R_HOME_STATE)
         except PlanningException:
             self.go_configs([self.L_HOME_STATE],[self.R_HOME_STATE])
+        self.sync()
+
+    def home_left(self):
+        try:
+            self.go_config_plan(self.L_HOME_STATE)
+        except PlanningException:
+            self.go_configs([self.L_HOME_STATE])
+        self.sync()
+
+    def home_right(self):
+        try:
+            self.go_config_plan(None,self.R_HOME_STATE)
+        except PlanningException:
+            self.go_configs([],[self.R_HOME_STATE])
         self.sync()
         
     def __del__(self):
@@ -78,11 +91,11 @@ class Interface:
 
     def open_grippers(self):
         self.y.left.open_gripper()
-        #self.y.right.open_gripper()
+        self.y.right.open_gripper()
 
     def close_grippers(self):
         self.y.left.close_gripper()
-        #self.y.right.close_gripper()
+        self.y.right.close_gripper()
 
     #move robot to the given point
     def go_cartesian(self,l_targets=[],r_targets=[],fine=False,nwiggles=(None,None),rot=(None,None),

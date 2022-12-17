@@ -56,6 +56,7 @@ def rotate(angle, iface, DEBUG=False):
         print("after get pose")
         l_delta = RigidTransform(
             translation=np.array([0.0,0.0,0.0]),
+            # default:
             # rotation=Interface.GRIP_DOWN_R,
             rotation = np.array([[np.cos(angle),-np.sin(angle),0],[np.sin(angle),np.cos(angle),0],[0,0,1]]),
             from_frame=YK.l_tcp_frame,

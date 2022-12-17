@@ -12,6 +12,7 @@ import math
 import copy
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
+from rotate import rotate_from_pointcloud, rotate
 # from ../../cable_untangling.tcps import *
 # from ../../cable_untangling.grasp import Grasp,GraspSelector
 import time
@@ -24,8 +25,9 @@ behavior_cloning_path = os.path.dirname(os.path.abspath(
 sys.path.insert(0, behavior_cloning_path)
 #from analysis import CornerPullingBCPolicy
 
-DISPLAY = True
-
+DISPLAY = False
+TWO_ENDS = False
+PUSH_DETECT = True
 
 def click_points(img):
     # left click mouse for pick point, right click for place point
@@ -67,7 +69,7 @@ def act_to_kps(act):
     return (x, y), (x+dx, y+dy)
 
 
-def take_action(pick, place):
+def take_action(pick, place, angle):
 
     # handle the actual grabbing motion
     # l_grasp=None
@@ -83,20 +85,30 @@ def take_action(pick, place):
     iface.set_speed((.1, 1))
     #yumi_left = iface.y.left
     # print(yumi_left.get_pose())
+    
+    iface.go_delta(l_trans=[0, 0, 0.2])  # lift
+    #if angle != 0:
+    #    pick[2] = pick[2] + .05
     iface.go_cartesian(l_targets=[RigidTransform(translation=pick, rotation=Interface.GRIP_DOWN_R,
-                                                 from_frame=YK.l_tcp_frame, to_frame='base_link')], nwiggles=(10, 10), rot=(.0, .0))
-    # iface.go_cartesian(r_targets=[RigidTransform(translation=pick, rotation=Interface.GRIP_DOWN_R,
-    #     from_frame = YK.r_tcp_frame, to_frame = 'base_link')], nwiggles=(10,10),rot=(.0,.0))
+                                                  from_frame=YK.l_tcp_frame, to_frame='base_link')], nwiggles=(10, 10), rot=(.0, .0))
+    #if angle != 0: 
+    #    rotate(angle, iface)
+    #    iface.go_delta(l_trans=[0, 0, -.05])
+    #iface.go_cartesian(l_targets=[RigidTransform(translation=pick, rotation=np.array([[np.cos(angle),-np.sin(angle),0],[np.sin(angle),np.cos(angle),0],[0,0,1]]),
+    #                                            from_frame=YK.l_tcp_frame, to_frame='base_link')], nwiggles=(10, 10), rot=(.0, .0))
+    
     iface.close_grippers()
     time.sleep(3)
     iface.go_delta(l_trans=[0, 0, 0.1])  # lift
     time.sleep(1)
     iface.set_speed((.1, 1))
     delta = [place[i] - pick[i] for i in range(3)]
-    change_height = 0.002
+    change_height = 0
     delta[2] = delta[2] + change_height
     iface.go_delta(l_trans=delta)
-    #iface.go_delta(l_trans=[0, 0, -0.06])
+    time.sleep(1)
+    iface.go_delta(l_trans=[0, 0, -0.06])
+    time.sleep(3)
     iface.open_grippers()
     iface.home()
     iface.sync()
@@ -105,6 +117,57 @@ def take_action(pick, place):
     time.sleep(2)
     iface.open_grippers()
 
+def take_action_2(pick, pick_2, place, place_2):
+
+    print("grabbing with left arm")
+    # GRIP LEFT
+    iface.set_speed((.1, 1))
+    iface.go_delta(l_trans=[0, 0, 0.2])  # lift
+    iface.go_cartesian(l_targets=[RigidTransform(translation=pick, rotation=Interface.GRIP_DOWN_R,
+                                                 from_frame=YK.l_tcp_frame, to_frame='base_link')], nwiggles=(10, 10), rot=(.0, .0))
+    # GRIP RIGHT
+    iface.go_delta(r_trans=[0, 0, 0.23])  # lift
+    time.sleep(3)
+    iface.go_cartesian(r_targets=[RigidTransform(translation=pick_2, rotation=Interface.GRIP_DOWN_R,
+         from_frame = YK.r_tcp_frame, to_frame = 'base_link')], nwiggles=(10,10),rot=(.0,.0))
+    iface.close_grippers()
+    time.sleep(3)
+    # LIFT AND MOVE LEFT
+    iface.go_delta(l_trans=[0, 0, 0.18])  # lift
+    time.sleep(1)
+    delta = [place[i] - pick[i] for i in range(3)]
+    change_height = 0
+    delta[2] = delta[2] + change_height
+    iface.go_delta(l_trans=delta)
+    # LIFT AND MOVE RIGHT
+    iface.go_delta(r_trans=[0, 0, 0.09])  # lift
+    time.sleep(1)
+    delta = [place_2[i] - pick_2[i] for i in range(3)]
+    change_height = 0
+    delta[2] = delta[2] + change_height
+    #Re-write go-delta because previous was error!
+    #iface.go_delta(r_trans=delta)
+    l_delta,r_delta=None,None
+    r_trans = delta
+    if r_trans is not None:
+        r_cur= iface.y.right.get_pose()
+        r_delta=RigidTransform(translation=r_trans,from_frame=r_cur.to_frame,to_frame=r_cur.to_frame)
+        r_new=r_delta*r_cur
+    if r_delta is not None:
+        iface.y.right.goto_pose(r_new,speed=iface.speed)
+    #DROP BOTH
+    time.sleep(2)
+    iface.go_delta(l_trans=[0, 0, -0.12])
+    #iface.go_delta(r_trans=[0, 0, -0.015])
+    time.sleep(3)
+    iface.open_grippers()
+    time.sleep(2)
+    iface.go_delta(l_trans=[0, 0, 0.1])
+    iface.go_delta(r_trans=[0, 0, 0.1])
+    iface.home()
+    iface.sync()
+    time.sleep(2)
+    
 
 #policy = CornerPullingBCPolicy()
 while True:
@@ -322,7 +385,7 @@ while True:
         for c in range(cols_comp):
             if c != 0:
                     c = float(c) - 0.5
-            for add in range(1, 8):
+            for add in range(1, 5):
                 if(new_di_data[int(min(len(new_di_data)-add, r*compress_factor+add))][int(c*compress_factor)] != 0):
                     compressed_map[int(r)][int(c)] = 255
                     break
@@ -407,42 +470,59 @@ while True:
         #if(4 <= len(all_solns)):
         #    break
         if(len(all_solns) >= 2):
-            min_y = 100000
-            max_y = 0
+            min_x = 100000
+            max_x = 0
             for soln in all_solns:
-                if soln[1] < min_y:
-                    min_y = soln[1]
-                if soln[1] > max_y:
-                    max_y = soln[1]
-            if (max_y-min_y) > 2:
+                if soln[0] < min_x:
+                    min_x = soln[0]
+                if soln[0] > max_x:
+                    max_x = soln[0]
+            if (max_x-min_x) > 2:
                 break
-        else:
-            tightness += 1
-    origin_x = len(compressed_map)/4
-    origin_y = len(compressed_map[0])/2
+        tightness += 1
+
+    origin_x = 0
+    origin_y = 0
     min_dist = 100000000
+    max_dist = 0
     min_all_solns = (0,0)
+    max_all_solns = (0,0)
     for soln in all_solns:
         dist = np.linalg.norm(
                     np.array([origin_x-soln[1], origin_y-soln[0]]))
         if dist < min_dist:
             min_dist = dist
             min_all_solns = soln
+        if TWO_ENDS:
+            if dist > max_dist:
+                max_dist = dist
+                max_all_solns = soln
     #if(3 <= len(all_solns_tight) <= 4):
 
     # for soln in all_solns:
     
     scaled_test_loc = [min_all_solns[0]*compress_factor,
                        min_all_solns[1]*compress_factor]
+    scaled_test_loc_2 = []
+    if TWO_ENDS:
+        scaled_test_loc_2 = [max_all_solns[0]*compress_factor,
+                       max_all_solns[1]*compress_factor]
     if(scaled_test_loc[0] != 0):
         scaled_test_loc[0] = scaled_test_loc[0] - int(compress_factor/2)
     if(scaled_test_loc[1] != 0):
         scaled_test_loc[1] = scaled_test_loc[1] - int(compress_factor/2)
+    if TWO_ENDS:
+        if(scaled_test_loc_2[0] != 0):
+            scaled_test_loc_2[0] = scaled_test_loc_2[0] - int(compress_factor/2)
+        if(scaled_test_loc_2[1] != 0):
+            scaled_test_loc_2[1] = scaled_test_loc_2[1] - int(compress_factor/2)
     if DISPLAY:
         plt.imshow(compressed_map, interpolation="nearest")
         plt.show()
     min_dist = 10000
+    min_dist_2 = 1000
     candidate_rope_loc = (0, 0)
+    candidate_rope_loc_2 = (0,0)
     for r in range(len(new_di_data)):
         for c in range(len(new_di_data[r])):
             if(di_data[r][c][0] != 0):
@@ -451,9 +531,19 @@ while True:
                 if (dist < min_dist):
                     candidate_rope_loc = (c, r)
                     min_dist = dist
+                if TWO_ENDS:
+                    dist_2 = np.linalg.norm(
+                    np.array([r-scaled_test_loc_2[1], c-scaled_test_loc_2[0]]))
+                    if (dist_2 < min_dist_2):
+                        candidate_rope_loc_2 = (c, r)
+                        min_dist_2 = dist_2
     min_loc = candidate_rope_loc
+    min_loc_2 = (0,0)
+    if TWO_ENDS:
+        min_loc_2 = candidate_rope_loc_2
     print("FITTED POINT: " + str(min_loc))
-
+    if TWO_ENDS:
+        print("FITTED POINT OF OTHER END: " + str(min_loc_2))
     if DISPLAY:
         plt.imshow(new_di_data, interpolation="nearest")
         plt.show()
@@ -505,8 +595,8 @@ while True:
     #if DISPLAY:
     #    plt.imshow(image_channel_data, interpolation="nearest")
     #    plt.show()
-    figure = plt.figure()
-    plt.savefig("Point_Cloud_Channel.png")
+    #figure = plt.figure()
+    #plt.savefig("Point_Cloud_Channel.png")
     # Threshold pointcloud
     lower = 80
     upper = 255
@@ -519,132 +609,97 @@ while True:
                 image_channel_data[r][c][2] = 0.0
 
     # Finish Thresholding, now find corner to place
-    max_edges = 0
-    best_location = ()
-    for r in range(len(image_channel_data)):
-        for c in range(len(image_channel_data[r])):
-            if(image_channel_data[r][c][0] != 0):
-                curr_edges = 0
-                for add in range(1, 5):
-                    if(image_channel_data[min(len(new_di_data)-add, r+add)][c][0] == 0):
-                        curr_edges += 1
-                    if(image_channel_data[max(0, r-add)][c][0] == 0):
-                        curr_edges += 1
-                    if(image_channel_data[r][min(len(new_di_data[0])-add, c+add)][0] == 0):
-                        curr_edges += 1
-                    if(image_channel_data[r][max(0, c-add)][0] == 0):
-                        curr_edges += 1
-                    if(image_channel_data[min(len(new_di_data)-add, r+add)][min(len(new_di_data[0])-add, c+add)][0] == 0):
-                        curr_edges += 1
-                    if(image_channel_data[min(len(new_di_data)-add, r+add)][max(0, c-add)][0] == 0):
-                        curr_edges += 1
-                    if(image_channel_data[max(0, r-add)][min(len(new_di_data[0])-add, c+add)][0] == 0):
-                        curr_edges += 1
-                    if(image_channel_data[max(0, r-add)][max(0, c-add)][0] == 0):
-                        curr_edges += 1
-                if(curr_edges > max_edges):
-                    best_location = (c, r)
-                    max_edges = curr_edges
-    print(best_location)
-    dist_tolerance = 400
-    """
-    for r in range(len(image_channel_data)):
-        for c in range(len(image_channel_data[r])):
-            if(np.linalg.norm(np.array([r-best_location[1],c-best_location[0]])) < dist_tolerance):
-                image_channel_data[r][c] = 0
-    """
-    max_edges = 8
-    best_locations = []
-    for r in range(len(image_channel_data)):
-        for c in range(len(image_channel_data[r])):
-            if(image_channel_data[r][c][0] != 0):
-                curr_edges = 0
-                for add in range(1, 3):
-                    if(image_channel_data[min(len(new_di_data)-add, r+add)][c][0] == 0):
-                        curr_edges += 1
-                    if(image_channel_data[max(0, r-add)][c][0] == 0):
-                        curr_edges += 1
-                    if(image_channel_data[r][min(len(new_di_data[0])-add, c+add)][0] == 0):
-                        curr_edges += 1
-                    if(image_channel_data[r][max(0, c-add)][0] == 0):
-                        curr_edges += 1
-                    if(image_channel_data[min(len(new_di_data)-add, r+add)][min(len(new_di_data[0])-add, c+add)][0] == 0):
-                        curr_edges += 1
-                    if(image_channel_data[min(len(new_di_data)-add, r+add)][max(0, c-add)][0] == 0):
-                        curr_edges += 1
-                    if(image_channel_data[max(0, r-add)][min(len(new_di_data[0])-add, c+add)][0] == 0):
-                        curr_edges += 1
-                    if(image_channel_data[max(0, r-add)][max(0, c-add)][0] == 0):
-                        curr_edges += 1
-                if(curr_edges > max_edges):
-                    best_locations += [(c, r)]
-                    #max_edges = curr_edges
-    print(best_locations)
-    min_dist = 0
-    for loc in best_locations:
-        if(np.linalg.norm(np.array([loc[1]-best_location[1], loc[0]-best_location[0]])) > min_dist):
-            min_dist = np.linalg.norm(
-                np.array([loc[1]-best_location[1], loc[0]-best_location[0]]))
-            best_location = loc
-    print("CHANNEL PLACE: "+str(best_location))
-    #if DISPLAY:
-    #    plt.imshow(image_channel_data, interpolation="nearest")
-    #    plt.show()
-    #img_skeleton = np.array(image_channel_data)
     if DISPLAY:
         plt.imshow(copy_channel_data, interpolation="nearest")
         plt.show()
+    #copy_channel_data = gaussian_filter(copy_channel_data, sigma=.4)
+    for r in range(len(copy_channel_data)):
+        for c in range(len(copy_channel_data[r])):
+            if copy_channel_data[r][c][0] != 0:
+                copy_channel_data[r][c][0] = 255.0
+                copy_channel_data[r][c][1] = 255.0
+                copy_channel_data[r][c][2] = 255.0
     img_skeleton = cv2.cvtColor(copy_channel_data, cv2.COLOR_RGB2GRAY)
-    features = cv2.goodFeaturesToTrack(img_skeleton, 2, 0.01, 200)
-    for (x, y) in features[:, 0].astype("int0"):
-        cv2.circle(img_skeleton, (x, y), 27, 127, -1)
-    print(features)
-    #if DISPLAY:
-    #    plt.imshow(img_skeleton)
+    features = cv2.goodFeaturesToTrack(img_skeleton, 10, 0.01, 200)
+    #for (x, y) in features[:, 0].astype("int0"):
+    #    cv2.circle(img_skeleton, (x, y), 27, 127, -1)
+    print("OPEN CV2 FOUND FEATURES: ", features)
     endpoints = [x[0] for x in features]
 
-    # plt.savefig("Channel_Remove_Rope.png")
-    #plt.imshow(img.color.data, interpolation="nearest")
-    # plt.show()
+    closest_to_origin = (0,0)
+    furthest_from_origin = (0,0)
+    min_dist = 10000000
+    max_dist = 0
+    for endpoint in endpoints:
+        dist = np.linalg.norm(np.array([endpoint[0], endpoint[1]-400]))
+        if dist < min_dist:
+            min_dist = dist
+            closest_to_origin = endpoint
+    for endpoint in endpoints:
+        dist = np.linalg.norm(np.array([closest_to_origin[0]-endpoint[0], closest_to_origin[1]-endpoint[1]]))
+        if dist > max_dist:
+            max_dist= dist
+            furthest_from_origin = endpoint
+    endpoints = [closest_to_origin, furthest_from_origin]
+    print("ENDPOINTS SELECTED: " + str(endpoints))
+    if DISPLAY:
+        plt.imshow(copy_channel_data, interpolation="nearest")
+        plt.show()
     # ----------------------FIND END OF CHANNEL
-
-    #q = input("EXIT OUT \n")
-    # NEW ---------------------------------------------------------------------------------
-    # pick,place=click_points(img) #left is pick point, right is place point
     pick = min_loc
-
+    pick_2 = (0,0)
+    if TWO_ENDS:
+        pick_2 = min_loc_2
     # Use estimation
-    place = best_location
+    place = (0,0)
+    place_2 = (0,0)
     # Use left side
     if(endpoints[0][0] < endpoints[1][0]):
         place = endpoints[0]
+        if TWO_ENDS:
+            place_2 = endpoints[1]
     else:
         place = endpoints[1]
+        if TWO_ENDS:
+            place_2 = endpoints[0]
     print("ACTUAL PLACE: "+str(place))
-    # place = FILL IN HERE
-    # VAINAVI: will need to observe and crop image most likely
-    #action = policy.get_action(img.color._data)
-    #pick, place = act_to_kps(action)
-    # breakpoint()
+    if TWO_ENDS:
+        print("ACTUAL PLACE 2: "+str(place_2))
     assert pick is not None and place is not None
 
-    # Convert to world coordinates:
+    # Convert Pick, Place, and Pick 2 to world coordinates:
     xind, yind = pick
     lin_ind = int(img.depth.ij_to_linear(np.array(xind), np.array(yind)))
     xind2, yind2 = place
     lin_ind2 = int(img.depth.ij_to_linear(np.array(xind2), np.array(yind2)))
 
+    xind3, yind3 = pick_2
+    lin_ind3 = 0
+    if TWO_ENDS:
+        lin_ind3 = int(img.depth.ij_to_linear(np.array(xind3), np.array(yind3)))
+
+    xind4, yind4 = place_2
+    lin_ind4 = 0
+    if TWO_ENDS:
+        lin_ind4 = int(img.depth.ij_to_linear(np.array(xind4), np.array(yind4)))
+
     points_3d = iface.cam.intrinsics.deproject(img.depth)
     point = iface.T_PHOXI_BASE*points_3d[lin_ind]
     point = [p for p in point]
-    # print(point)
-    point[2] -= 0.0025 # manually adjust height a tiny bit
+    point[2] -= 0.0028 # manually adjust height a tiny bit
     place_point = iface.T_PHOXI_BASE*points_3d[lin_ind2]
-
-    # point conversion
+    point_2 = None
+    if TWO_ENDS:
+        point_2 = iface.T_PHOXI_BASE*points_3d[lin_ind3]
+        point_2 = [p for p in point_2]
+        point_2[2] -= 0.003 # manually adjust height a tiny bit
+    # Convert Channel End and Channel start to world coordinates
     xind, yind = place
     lin_ind = int(img.depth.ij_to_linear(np.array(xind), np.array(yind)))
     place_point = iface.T_PHOXI_BASE*points_3d[lin_ind]
+    place_point_2 = (0,0)
+    if TWO_ENDS:
+        place_point_2 = iface.T_PHOXI_BASE*points_3d[lin_ind4]
 
     xind, yind = endpoints[0]
     lin_ind = int(img.depth.ij_to_linear(np.array(xind), np.array(yind)))
@@ -653,11 +708,6 @@ while True:
     xind, yind = endpoints[1]
     lin_ind = int(img.depth.ij_to_linear(np.array(xind), np.array(yind)))
     endpoint_2_point = iface.T_PHOXI_BASE*points_3d[lin_ind]
-
-    print("TESTING")
-    #print(place_point)
-    #print(endpoint_1_point)
-    #print(endpoint_2_point)
 
     new_place_point_data = np.array(
         [place_point.y, place_point.x, place_point.z])
@@ -674,17 +724,17 @@ while True:
         new_endpoint_2_point_data, frame=endpoint_2_point.frame)
 
     # FIND THE PRINCIPLE AXIS FOR THE GRIPPER AND ROTATE, THEN TAKE ACTION
-    """
+    
     rope_cloud_data_x = rope_cloud.x_coords
     rope_cloud_data_y = rope_cloud.y_coords
     rope_cloud_data_z = rope_cloud.z_coords
-    tolerance = 0.23
+    tolerance = 0.03
     new_rope_cloud_data_x = []
     new_rope_cloud_data_y = []
     new_rope_cloud_data_z = []
     for count in range(len(rope_cloud_data_x)):
-        dist = np.linalg.norm(np.array([rope_cloud_data_x[count]-point[0], rope_cloud_data_x[count]-point[1]]))
-        #print("CURR DIST: "+str(dist))
+        dist = np.linalg.norm(np.array([rope_cloud_data_x[count]-point[0], rope_cloud_data_y[count]-point[1]]))
+        #print("CURR DIST: "+str(dist)+"CURR POINT: "+str((rope_cloud_data_x[count],rope_cloud_data_y[count])))
         if dist < tolerance:
             new_rope_cloud_data_x += [rope_cloud_data_x[count]]
             new_rope_cloud_data_y += [rope_cloud_data_y[count]]
@@ -701,46 +751,54 @@ while True:
     if DISPLAY:
         plt.imshow(di_2._image_data(), interpolation="nearest")
         plt.show()
-    principle_axis = g.princ_axis(new_rope_cloud)
-    print("PRINCIPLE AXIS")
-    print(principle_axis)
-    R = np.matrix([[0, -1, 0],[1,0,0], [0,0,1]])
-    principle_axis = np.matmul(R,np.vstack(principle_axis))
-    print(principle_axis)
-    print(principle_axis.item((0,0)))
-    principle_axis = np.array([principle_axis.item((0,0)),principle_axis.item((1,0)),principle_axis.item((2,0))])
-    print("ROTATED AXIS: " + str(principle_axis))
-    #principle_axis[1] = 0.5
-    grasp_poses = g.generate_grasps(principle_axis, np.array(
-        [-0.5810662, -1.34913424,  0.73567095]), iface.L_TCP, point[2])
-    grasp_poses_filter = g.filter_unreachable(grasp_poses, iface.L_TCP)
-    grasp_pose = g.select_single_grasp(grasp_poses_filter, iface.L_TCP)
-    if grasp_pose is None:
-       
-        count = 0
-        print("SELECTED THE "+str(count)+"'th POSSIBLE GRASP")
-        while(count < len(grasp_poses)):
-            grasp_pose = grasp_poses[count]
-            rot_Grasp = Grasp(grasp_pose)
-            try:
-                iface.grasp(rot_Grasp, None)
-                break
-            except:
-                count+=1
-        #raise GraspException("No collision free grasps found")
-        # at the end, sanity check that z axis is still facing negative
-    #if(grasp_pose.rotation[:, 2].dot([0, 0, 1]) > 0):
-    #    print("Warning: upward gripper grasp returned")
-    #    #raise Exception("Grasp calculated returned a gripper orientation with the gripper pointing upwards")
-    
-    """
+    #angle = rotate_from_pointcloud(new_rope_cloud)
+    #print("ROTATE ANGLE: "+str(angle))
     # START PICK AND PLACE ___________________________________
-    take_action(point, place_point)
+    if not TWO_ENDS:
+        take_action(point, place_point, 0)
+        #print("skip")
+    else: 
+        take_action_2(point, point_2, place_point, place_point_2)
 
     # PACKING __________________________________________________
+    if not PUSH_DETECT:
+        push_action_endpoints(
+            new_place_point, [new_endpoint_1_point, new_endpoint_2_point], iface)
+    else:
+        while(True):
+            push_action_endpoints(
+                new_place_point, [new_endpoint_1_point, new_endpoint_2_point], iface, False)
+            img = iface.take_image()
+            depth = img.depth.data
+            print(depth)
+            start = np.array([endpoints[0][0], endpoints[0][1]])
+            end = np.array([endpoints[1][0], endpoints[1][1]])
+            move_vector = (end-start)/np.linalg.norm(end-start)
+            current = copy.deepcopy(start)
+            loop_again = False
+            tolerance = 0.0042
+            interval_scaling = 4
+            print("START: ", start)
+            print("END: ", end)
+            print("MOVE VECTOR: ", move_vector)
+            for count in range(210):
+                curr_depth = depth[int(math.floor(current[1]))][int(math.floor(current[0]))]
+                depth_lower = depth[int(math.floor(current[1]+9))][int(math.floor(current[0]))]
+                print("CURRENT POINT: ",[int(math.floor(current[0])),int(math.floor(current[1]))]," CURRENT DEPTH: ", curr_depth, " DEPTH_LOWER: ", depth_lower)
+                if(curr_depth != 0 and depth_lower!= 0 and (abs(depth_lower - curr_depth) > tolerance)):
+                    loop_again = True
+                    print("EXCEEDED DEPTH TOLERANCE!")
+                current[0] += move_vector[0]*interval_scaling
+                current[1] += move_vector[1]*interval_scaling
+            if DISPLAY:
+                plt.imshow(img.depth.data, interpolation="nearest")
+                plt.show()
+            if not loop_again:
+                break
+            
 
-    push_action_endpoints(
-        new_place_point, [new_endpoint_1_point, new_endpoint_2_point], iface)
+
+            
     break
     # g.close()
 print("Done with script, can end")

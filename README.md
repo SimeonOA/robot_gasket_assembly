@@ -1,6 +1,6 @@
 # cable_insert
 
-The main file of importance in this repository is `pick_and_place.py`.
+The main file of importance in this repository is `main.py`.
 
 Relevant Repos: 
 1. https://github.com/BerkeleyAutomation/yumirws

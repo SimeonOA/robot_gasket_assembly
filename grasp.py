@@ -85,6 +85,7 @@ class GraspSelector:
         loc is a tuple of (x index,y index) into the depth image (NOT a point)
         grasp_dist is how deep to grab the cable
         '''
+        
         # 1. floodfill starting from selection to find points which are within a radius and also smoothly varying depth information
         cable_points, centroid = self.segment_cable(loc)
         # 2. find the axis of the cable
@@ -280,6 +281,7 @@ class GraspSelector:
         pts = []
         closepts = []
         visited = set()
+        print("Loc", loc)
         start_point = self.ij_to_point(loc).data
         RADIUS2 = 1  # distance from original point before termination
         CLOSE2 = .002**2
@@ -322,7 +324,7 @@ class GraspSelector:
         start_point = self.ij_to_point(loc).data
         RADIUS2 = 1  # distance from original point before termination
         CLOSE2 = .002**2
-        DELTA = 0.0002
+        DELTA = 0.0002*3
         NEIGHS = [(-1, 0), (1, 0), (0, 1), (0, -1)]
         # carry out floodfill
         while len(q) > 0:
@@ -351,6 +353,8 @@ class GraspSelector:
 
     def ij_to_point(self, loc):
         lin_ind = self.depth.width*loc[1]+loc[0]
+        #print("This is LIN_IND", lin_ind)
+        #lin_ind = int(lin_ind)
         return self.points_3d[lin_ind]
 
     def princ_axis(self, points):

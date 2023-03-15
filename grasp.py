@@ -79,7 +79,7 @@ class GraspSelector:
         self.yk = YuMiKinematics()
         self.planner = Planner()
 
-    def single_grasp(self, loc, grasp_dist, tcp):
+    def single_grasp(self, loc, grasp_dist, tcp, place_mode=False):
         '''
         returns a Grasp object for a single grasp on the given location
         loc is a tuple of (x index,y index) into the depth image (NOT a point)
@@ -87,11 +87,15 @@ class GraspSelector:
         '''
         
         # 1. floodfill starting from selection to find points which are within a radius and also smoothly varying depth information
-        cable_points, centroid = self.segment_cable(loc)
+        cable_points, centroid, _ = self.segment_cable(loc, orient_mode = True)
         # 2. find the axis of the cable
         cable_ax = self.princ_axis(cable_points)
+        centroid_vec = centroid.vector
+        # if we're in placemode we dont actually want the robot to try and reach into the channel
+        if place_mode: 
+            centroid_vec[2] = centroid_vec[2]*1.3
         grasp_poses = self.generate_grasps(
-            cable_ax, centroid.vector, tcp, grasp_dist)
+            cable_ax, centroid_vec, tcp, grasp_dist)
         grasp_poses = self.filter_unreachable(grasp_poses, tcp)
         grasp_pose = self.select_single_grasp(grasp_poses, tcp)
         if grasp_pose is None:
@@ -107,8 +111,8 @@ class GraspSelector:
         # restrictive one. same for l_dist and r_dist
         self.yk.set_tcp(l_tcp, r_tcp)
         grasp_dist = min(l_dist, r_dist)
-        points1, c1 = self.segment_cable(loc1)
-        points2, c2 = self.segment_cable(loc2)
+        points1, c1, _ = self.segment_cable(loc1, orient_mode=True)
+        points2, c2, _ = self.segment_cable(loc2, orient_mode=True)
         ax1 = self.princ_axis(points1)
         ax2 = self.princ_axis(points2)
         if l_tcp.translation[2] < r_tcp.translation[2]:
@@ -272,7 +276,7 @@ class GraspSelector:
                 bestg = grasps[i]
         return bestg
 
-    def segment_cable(self, loc):
+    def segment_cable(self, loc, orient_mode=False):
         '''
         returns a PointCloud corresponding to cable points along the provided location
         inside the depth image
@@ -283,20 +287,34 @@ class GraspSelector:
         visited = set()
         print("Loc", loc)
         start_point = self.ij_to_point(loc).data
+        start_color = self.color[loc[1]][loc[0]]
         RADIUS2 = 1  # distance from original point before termination
         CLOSE2 = .002**2
         DELTA = .00075
         NEIGHS = [(-1, 0), (1, 0), (0, 1), (0, -1)]
+        COLOR_THRESHOLD = 100
+        counter = 0
+        waypoints = []
         # carry out floodfill
         while len(q) > 0:
+            # if we're in orient_mode we only want the local segment of the cable to find the principle axis, not the entire cable
+            if (orient_mode):
+                if counter > 600:
+                    break
             next_loc = q.pop()
             next_point = self.ij_to_point(next_loc).data
+            next_color = np.asarray(self.color[next_loc[1]][next_loc[0]])
+            next_color = next_color.astype(np.int16)
             visited.add(next_loc)
             diff = start_point-next_point
             dist = diff.dot(diff)
             if (dist > RADIUS2):
                 continue
             pts.append(next_point)
+            # has us updating the list of points to our waypoint
+            if counter % 1000 == 0:
+                waypoints.append((next_loc[1],next_loc[0]))
+            counter += 1
             if (dist < CLOSE2):
                 closepts.append(next_point)
             # add neighbors if they're within delta of current height
@@ -307,10 +325,16 @@ class GraspSelector:
                     continue
                 if (test_loc in visited):
                     continue
+                # want to check if the points were adding are of similar color cause the cable is a uniform color
+                # the channel currently is not the same color so this is another method to differentiate between them
                 test_pt = self.ij_to_point(test_loc).data
-                if (abs(test_pt[2]-next_point[2]) < DELTA):
+                test_color = np.asarray(self.color[test_loc[1]][test_loc[0]])
+                test_color = test_color.astype(np.int16)
+                color_diff = np.linalg.norm(next_color-test_color)
+                if (abs(test_pt[2]-next_point[2]) < DELTA and color_diff < COLOR_THRESHOLD):
                     q.append(test_loc)
-        return PointCloud(np.array(pts).T, "base_link"), PointCloud(np.array(closepts).T, "base_link").mean()
+
+        return PointCloud(np.array(pts).T, "base_link"), PointCloud(np.array(closepts).T, "base_link").mean(), waypoints
 
     def segment_channel(self, loc):
         '''
@@ -326,6 +350,9 @@ class GraspSelector:
         CLOSE2 = .002**2
         DELTA = 0.0002*3
         NEIGHS = [(-1, 0), (1, 0), (0, 1), (0, -1)]
+        counter = 0
+        waypoints = []
+        endpoints = []
         # carry out floodfill
         while len(q) > 0:
             next_loc = q.pop()
@@ -336,20 +363,24 @@ class GraspSelector:
             if (dist > RADIUS2):
                 continue
             pts.append(next_point)
+            # has us updating the list of points to our waypoint
+            if counter % 800 == 0:
+                waypoints.append((next_loc[1],next_loc[0]))
+            counter += 1
             if (dist < CLOSE2):
                 closepts.append(next_point)
             # add neighbors if they're within delta of current height
             for n in NEIGHS:
                 test_loc = (next_loc[0]+n[0], next_loc[1]+n[1])
+                if (test_loc in visited):
+                    continue
                 if test_loc[0] >= self.depth.width or test_loc[0] < 0 \
                         or test_loc[1] >= self.depth.height or test_loc[1] < 0:
-                    continue
-                if (test_loc in visited):
                     continue
                 test_pt = self.ij_to_point(test_loc).data
                 if (abs(test_pt[2]-next_point[2]) < DELTA):
                     q.append(test_loc)
-        return PointCloud(np.array(pts).T, "base_link"), PointCloud(np.array(closepts).T, "base_link").mean()
+        return PointCloud(np.array(pts).T, "base_link"), PointCloud(np.array(closepts).T, "base_link").mean(), waypoints, endpoints
 
     def ij_to_point(self, loc):
         lin_ind = self.depth.width*loc[1]+loc[0]
@@ -375,7 +406,9 @@ class GraspSelector:
         Izz = z.dot(z)
         M = np.array([[Ixx, Ixy, Ixz], [Ixy, Iyy, Iyz], [Ixz, Iyz, Izz]])
         w, v = np.linalg.eig(M)
-        return v[:, np.argmax(w)]
+        princip_axis = v[:, np.argmax(w)]
+        print("the principle axis is: ", princip_axis) 
+        return princip_axis
 
     def close(self):
         print("Deleting grasp")

@@ -224,7 +224,7 @@ class Interface:
             if len(l_q)>0:self.y.left.move_joints_traj(l_q,speed=self.speed,zone='z20')
             if len(r_q)>0:self.y.right.move_joints_traj(r_q,speed=self.speed,zone='z20')
 
-    def grasp(self,l_grasp=None,r_grasp=None):
+    def grasp(self,l_grasp=None,r_grasp=None, dive = True):
         '''
         Carries out the grasp motions on the desired end poses. responsible for doing the 
         approach to pre-grasp as well as the actual grasp itself.
@@ -259,7 +259,10 @@ class Interface:
             self.y.right.move_gripper(r_grasp.gripper_pos)
         self.sync()
         if l_grasp is not None:
-            self.y.left.goto_pose(l_grasp.pose,linear=True,speed=l_grasp.speed)
+            if dive == True:
+                self.y.left.goto_pose(l_grasp.pose,linear=True,speed=l_grasp.speed)
+            else:
+                pass
         if r_grasp is not None:
             self.y.right.goto_pose(r_grasp.pose,linear=True,speed=r_grasp.speed)
         self.sync()

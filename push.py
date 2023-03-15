@@ -77,7 +77,7 @@ def push_action_endpoints(pick, endpoints, iface, double=True):
     print("START: "+str(start))
     print("END: " + str(end))
     # print(move_vector)
-    DEPTH = .1243
+    DEPTH = .097 #.1243
     start = np.array([start[0], start[1], DEPTH])
     pick_temp = copy.deepcopy(start)
     pick_temp2 = copy.deepcopy(start)

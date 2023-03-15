@@ -115,6 +115,7 @@ def take_action(pick, place, angle):
     iface.open_grippers()
 
 
+# Use this for two ends of the cable free
 def take_action_2(pick, pick_2, place, place_2):
 
     print("grabbing with left arm")
@@ -264,7 +265,7 @@ while True:
         plt.imshow(copy_color, interpolation="nearest")
         plt.show()
     loc = max_scoring_loc
-    print("Starting segmenet_cable pt: "+str(max_scoring_loc))
+    print("Starting segment_cable pt: "+str(max_scoring_loc))
     # ----------------------Segment
     rope_cloud, _ = g.segment_cable(loc)
     # ----------------------Remove block
@@ -728,6 +729,8 @@ while True:
         push_action_endpoints(
             new_place_point, [new_endpoint_1_point, new_endpoint_2_point], iface)
     else:
+        # Move across the entire length of cable in interval and see if any point is not well fit. If ANY point is 
+        # found to not be well fit, run push action again 
         while (True):
             push_action_endpoints(
                 new_place_point, [new_endpoint_1_point, new_endpoint_2_point], iface, False)

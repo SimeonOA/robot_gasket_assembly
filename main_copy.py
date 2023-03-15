@@ -1204,7 +1204,7 @@ try:
 
         ##### THE ORDER IN WHICH YOU PICK AND PLACE POINTS SHOULD BE 
         linalg_norm = lambda x,y: np.sqrt((x[0]-y[1])**2 + (x[1]-y[0])**2)
-        
+        # INSERT BFS CODE HERE!!!   
         
         # our new "place" i.e. channel endpoint relative to where we pick waypoints is the prev_channel_pt
         # we want to update this for the next interation as well

@@ -93,7 +93,8 @@ class GraspSelector:
         centroid_vec = centroid.vector
         # if we're in placemode we dont actually want the robot to try and reach into the channel
         if place_mode: 
-            centroid_vec[2] = centroid_vec[2]*1.3
+            print("centroid_vec[2] was", centroid_vec[2])
+            centroid_vec[2] = 0.05 #centroid_vec[2]*1.3
         grasp_poses = self.generate_grasps(
             cable_ax, centroid_vec, tcp, grasp_dist)
         grasp_poses = self.filter_unreachable(grasp_poses, tcp)
@@ -185,7 +186,7 @@ class GraspSelector:
         gleft, gright = chosen_pair
         return Grasp(gleft), Grasp(gright)
 
-    def generate_grasps(self, cable_ax, centroid, tcp, grasp_dist):
+    def generate_grasps(self, cable_ax, centroid, tcp, grasp_dist, place_mode=False):
         '''
         returns a pose which avoids obstacles in the point cloud
         '''
@@ -197,6 +198,8 @@ class GraspSelector:
         new_x /= np.linalg.norm(new_x)
         new_z = np.cross(new_x, new_y)
         R = RigidTransform.rotation_from_axes(new_x, new_y, new_z)
+        if place_mode:
+            centroid[2] = 0.05
         cable_pose = RigidTransform(
             rotation=R, translation=centroid, from_frame=tcp.from_frame, to_frame="base_link")
         candidate_grasps = self.generate_candidates(cable_pose, grasp_dist)

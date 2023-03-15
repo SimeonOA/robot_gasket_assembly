@@ -16,6 +16,7 @@ from rotate import rotate_from_pointcloud, rotate
 import time
 import os
 import sys
+import traceback
 cable = os.path.dirname(os.path.abspath(__file__)) + "/../../cable_untangling"
 sys.path.insert(0, cable)
 behavior_cloning_path = os.path.dirname(os.path.abspath(
@@ -39,6 +40,17 @@ def act_to_kps(act):
     x, y, dx, dy = act
     x, y, dx, dy = int(x*224), int(y*224), int(dx*224), int(dy*224)
     return (x, y), (x+dx, y+dy)
+
+def coord_to_point(coord):
+    points_3d = iface.cam.intrinsics.deproject(img.depth)
+    xind, yind = coord
+    lin_ind = int(img.depth.ij_to_linear(np.array(xind), np.array(yind)))
+    point = iface.T_PHOXI_BASE*points_3d[lin_ind]
+    new_point_data = np.array(
+        [point.y, point.x, point.z])
+    new_point = Point(
+        new_point_data, frame=point.frame)
+    return new_point
 
 
 def take_action(pick, place, angle):
@@ -76,6 +88,7 @@ def take_action(pick, place, angle):
             grasp = g.single_grasp(place,.000,iface.L_TCP, place_mode=True)
             g.col_interface.visualize_grasps([grasp.pose],iface.L_TCP)
             #wrist = grasp.pose*iface.R_TCP.inverse()
+            print("the grasp pose is", grasp.pose)
             print("grabbing with left arm")
             l_grasp=grasp
             l_grasp.pose.from_frame=YK.l_tcp_frame
@@ -91,24 +104,27 @@ def take_action(pick, place, angle):
         iface.go_delta(l_trans=[0, 0, 0.1])  # lift
         time.sleep(1)
         iface.set_speed((.1, 1))
-        delta_xy = [place[i] - pick[i] for i in range(2)]
-        delta_z = [0] #[three_mat_depth[place[1]][place[0]] - three_mat_depth[pick[1]][pick[0]]]
+        place_point = coord_to_point(place)
+        pick_point = coord_to_point(pick)
+        delta_xy = [place_point[i] - pick_point[i] for i in range(2)]
+        #delta_z = [place_point[2]-pick_point[2]] #[three_mat_depth[place[1]][place[0]] - three_mat_depth[pick[1]][pick[0]]]
+        delta_z = [0]
         delta = delta_xy + delta_z
         change_height = 0
         delta[2] = delta[2] + change_height
+        iface.go_delta(l_trans=[0, 0, 0.1])
         iface.go_delta(l_trans=delta)
         time.sleep(1)
         iface.go_delta(l_trans=[0, 0, -0.06])
         time.sleep(3)
-    
-    iface.open_grippers()
-    iface.home()
-    iface.sync()
+        iface.open_grippers()
     # iface.set_speed(SPEED)
     iface.set_speed((.1, 1))
     time.sleep(2)
-    iface.open_grippers()
 
+    iface.go_delta(l_trans=[0, 0, 0.1])  # lift
+    iface.home()
+    iface.sync()
 
 
 
@@ -216,15 +232,35 @@ def take_action_2(pick, pick_2, place, place_2):
     iface.sync()
     time.sleep(2)
 
-def push_down(point):
+def push_down(point, depth=0.012):
+    iface.set_speed((.1, 1))
+
+
+    xind, yind = point
+    lin_ind = int(original_depth_image_scan.depth.ij_to_linear(np.array(xind), np.array(yind)))
+    push_point = iface.T_PHOXI_BASE*points_3d[lin_ind]
+    new_push_point_data = np.array(
+        [push_point.y, push_point.x, push_point.z + depth])
+    new_push_point = Point(
+        new_push_point_data, frame=push_point.frame)
+    
+    
+    iface.go_cartesian(l_targets=[RigidTransform(translation=new_push_point, rotation=Interface.GRIP_DOWN_R,
+                                                     from_frame=YK.l_tcp_frame, to_frame='base_link')], nwiggles=(10, 10), rot=(.0, .0))
+    time.sleep(2)
+    iface.go_delta(l_trans=[0, 0, 0.1])  # lift
+
     return None
 
 
 
 original_channel_waypoints = []
-channel_endpoint = None
-prev_channel_pt = None
-
+original_depth_image_scan = None
+last_depth_image_scan = None
+channel_endpoints = None
+prev_channel_pt = []
+CABLE_PIXELS_TO_DIST = None
+CHANNEL_PIXELS_TO_DIST = None
 try:
     while True:
         iface.home()
@@ -242,6 +278,9 @@ try:
             plt.show()
         three_mat_color = img.color.data
         three_mat_depth = img.depth.data
+        if original_depth_image_scan is None:
+            original_depth_image_scan = three_mat_depth
+        last_depth_image_scan = three_mat_depth
 
         edges_pre = np.uint8(three_mat_depth*10)
         edges = cv2.Canny(edges_pre,10,20)
@@ -390,6 +429,11 @@ try:
                         diff3 = abs(three_mat_depth[r-add][c-add] - three_mat_depth[r+add][r+add])
                         # top right - bottom left
                         diff4 = abs(three_mat_depth[r-add][c+add] - three_mat_depth[r+add][r-add])
+
+                        if diff1 > 0.03 or diff2 > 0.03 or diff3 > 0.03 or diff4 > 0.03:
+                            continue
+                        if 0.01 <= np.mean(np.array([diff1, diff2, diff3, diff4])) <= 0.014:
+                            candidate_channel_pts += [(r,c)]
 
                         # if 0.01 < diff1 < 0.014 or 0.01 < diff2 < 0.014 or 0.01 < diff3 < 0.014 or 0.01 < diff4 < 0.014:
                         #     candidate_channel_pts += [(r,c)]     
@@ -1073,15 +1117,12 @@ try:
         # Use left side
         if (endpoints[0][0] < endpoints[1][0]):
             place = endpoints[0]
-            if TWO_ENDS:
-                place_2 = endpoints[1]
+            place_2 = endpoints[1]
         else:
             place = endpoints[1]
-            if TWO_ENDS:
-                place_2 = endpoints[0]
+            place_2 = endpoints[0]
         print("ACTUAL PLACE: "+str(place))
-        if TWO_ENDS:
-            print("ACTUAL PLACE 2: "+str(place_2))
+        print("ACTUAL PLACE 2: "+str(place_2))
         
 
 
@@ -1102,29 +1143,26 @@ try:
             if dist1 > max_dist or dist2 > max_dist:
                 max_dist = max(dist1, dist2)
                 max_all_solns = soln
-            if TWO_ENDS:
-                if dist1 < min_dist or dist2 < min_dist:
-                    min_dist = min(dist1, dist2)
-                    min_all_solns = soln
+            if dist1 < min_dist or dist2 < min_dist:
+                min_dist = min(dist1, dist2)
+                min_all_solns = soln
 
         scaled_test_loc = [max_all_solns[0]*compress_factor,
                         max_all_solns[1]*compress_factor]
         scaled_test_loc_2 = []
-        if TWO_ENDS:
-            scaled_test_loc_2 = [min_all_solns[0]*compress_factor,
-                                min_all_solns[1]*compress_factor]
+        scaled_test_loc_2 = [min_all_solns[0]*compress_factor,
+                            min_all_solns[1]*compress_factor]
         if (scaled_test_loc[0] != 0):
             scaled_test_loc[0] = scaled_test_loc[0] - int(compress_factor/2)
             print("scaled_test_loc[0]", scaled_test_loc[0])
         if (scaled_test_loc[1] != 0):
             scaled_test_loc[1] = scaled_test_loc[1] - int(compress_factor/2)
-        if TWO_ENDS:
-            if (scaled_test_loc_2[0] != 0):
-                scaled_test_loc_2[0] = scaled_test_loc_2[0] - \
-                    int(compress_factor/2)
-            if (scaled_test_loc_2[1] != 0):
-                scaled_test_loc_2[1] = scaled_test_loc_2[1] - \
-                    int(compress_factor/2)
+        if (scaled_test_loc_2[0] != 0):
+            scaled_test_loc_2[0] = scaled_test_loc_2[0] - \
+                int(compress_factor/2)
+        if (scaled_test_loc_2[1] != 0):
+            scaled_test_loc_2[1] = scaled_test_loc_2[1] - \
+                int(compress_factor/2)
         if DISPLAY:
             plt.imshow(compressed_map, interpolation="nearest")
             plt.show()
@@ -1140,18 +1178,16 @@ try:
                     if (dist < min_dist):
                         candidate_rope_loc = (c, r)
                         min_dist = dist
-                    if TWO_ENDS:
-                        dist_2 = np.linalg.norm(
-                            np.array([r-scaled_test_loc_2[1], c-scaled_test_loc_2[0]]))
-                        if (dist_2 < min_dist_2):
-                            candidate_rope_loc_2 = (c, r)
-                            min_dist_2 = dist_2
+                    dist_2 = np.linalg.norm(
+                        np.array([r-scaled_test_loc_2[1], c-scaled_test_loc_2[0]]))
+                    if (dist_2 < min_dist_2):
+                        candidate_rope_loc_2 = (c, r)
+                        min_dist_2 = dist_2
         min_loc = candidate_rope_loc
         min_loc_2 = (0, 0)
         print("FITTED POINT: " + str(min_loc))
-        if TWO_ENDS:
-            min_loc_2 = candidate_rope_loc_2
-            print("FITTED POINT OF OTHER END: " + str(min_loc_2))
+        min_loc_2 = candidate_rope_loc_2
+        print("FITTED POINT OF OTHER END: " + str(min_loc_2))
         if DISPLAY:
             plt.scatter(x=[min_loc[0], min_loc_2[0]], y = [min_loc[1], min_loc_2[1]], c='w')
             plt.scatter(x=[j[0]*compress_factor - int(compress_factor/2) for j in all_solns], y = [j[1]*compress_factor - int(compress_factor/2) for j in all_solns], c='b')
@@ -1161,8 +1197,7 @@ try:
         pick = min_loc
         print("This is Pick", pick)
         pick_2 = (0, 0)
-        if TWO_ENDS:
-            pick_2 = min_loc_2
+        pick_2 = min_loc_2
         # assert pick is not None and place is not None
         # take_action(pick, place, 0)
         # START PICK AND PLACE ___________________________________
@@ -1171,6 +1206,16 @@ try:
         linalg_norm = lambda x,y: np.sqrt((x[0]-y[1])**2 + (x[1]-y[0])**2)
         
         
+        # our new "place" i.e. channel endpoint relative to where we pick waypoints is the prev_channel_pt
+        # we want to update this for the next interation as well
+        sorted_channel_waypoints = sorted(channel_waypoints, key = lambda x: linalg_norm(place , x))
+        curr_channel_pt = place
+        if prev_channel_pt != []:
+            place = prev_channel_pt
+        prev_channel_pt = curr_channel_pt
+
+
+
         # if the endpoint of the rope is too close to the end point of the channel we just say our cable endpoint is our channel endpoint
         # OR if the rope is already attached to the channel by virtue of not being TWO_ENDS
         CABLE_CHANNEL_ENDPOINT_ACCEPTABLE_DIFF = 60
@@ -1182,7 +1227,7 @@ try:
         for i in sorted_cable_waypoints:
             print(linalg_norm(pick,i))
         # basically saying we want our waypoints to be about a fifth of the distance between the channel end points
-        acceptable_dist = linalg_norm(place ,place_2) / 2
+        acceptable_dist = linalg_norm(place ,place_2) / 4
         for waypoint in sorted_cable_waypoints:
             if linalg_norm(pick , waypoint) > acceptable_dist:
                 dist2waypoint = linalg_norm(pick , waypoint)
@@ -1345,9 +1390,11 @@ try:
         #     take_action_2(point, point_2, place_point, place_point_2)
     
     # this is for if anything breaks then we just move onto the pushing task 
-except:
+except Exception:
+    traceback.print_exc()
+    ACCEPTABLE_DEPTH = 0.02
     img = iface.take_image()
-
+    points_3d = iface.cam.intrinsics.deproject(img.depth)
     g = GraspSelector(img, iface.cam.intrinsics, iface.T_PHOXI_BASE)
     # NEW --------------------------------------------------------------------------------
 
@@ -1358,12 +1405,42 @@ except:
     three_mat_color = img.color.data
     three_mat_depth = img.depth.data
 
+    last_depth_image_scan = three_mat_depth
+
     print("BEGINNING PUSHING")
 
-
+    total_pushes = 0
     # binary push method, look at the midpoint waypoint in the channel, see if it's pushed down or not
-    def binary_push():
-        return None
+    # need the chnanel waypoints to be sorted in terms of distance to a given endpoint, whichever endpoint does not matter
+    def binary_push(sorted_channel_waypoints):
+        iface.close_grippers()
+        total_pushes = 0
+        high = len(sorted_channel_waypoints) - 1
+        low = 0
+        # gets the indices in binary order to be evaluated
+        def binary_order(low, high):
+            if low > high:
+                return []
+            if low == high:
+                return [low]
+            mid = (high+low)//2
+            print(low, high, mid)
+            return [mid]+binary_order(low, mid-1)+binary_order(mid+1, high)
+        
+        binary_indices = binary_order(low, high)
+        pushes_this_run = 0
+        while True:
+            img = iface.take_image()
+            last_depth_image_scan = img.depth.data
+            for i in binary_indices: 
+                channel_waypoint = sorted_channel_waypoints[i]
+                r,c = channel_waypoint
+                if  last_depth_image_scan[r][c] - original_depth_image_scan[r][c] > ACCEPTABLE_DEPTH:
+                    pushes_this_run += 1
+                    push_down(channel_waypoint)
+            if pushes_this_run == 0:
+                return total_pushes
+            total_pushes += pushes_this_run
     
     
     
@@ -1372,48 +1449,61 @@ except:
     
     # linear push method, just travel across the waypoints until everything is pressed down 
     def linear_push():
-        return None
+        iface.close_grippers()
+        total_pushes = 0
+        pushes_this_run = 0
+        while True:
+            img = iface.take_image()
+            last_depth_image_scan = img.depth.data
+            for channel_waypoint in sorted_channel_waypoints:
+                r,c = channel_waypoint
+                if  last_depth_image_scan[r][c] - original_depth_image_scan[r][c] > ACCEPTABLE_DEPTH:
+                    pushes_this_run += 1
+                    push_down(channel_waypoint)
+            if pushes_this_run == 0:
+                return total_pushes
+            total_pushes += pushes_this_run
 
 
     # PACKING __________________________________________________
-    if not PUSH_DETECT:
-        push_action_endpoints(
-            new_place_point, [new_endpoint_1_point, new_endpoint_2_point], iface)
-    else:
-        # Move across the entire length of cable in interval and see if any point is not well fit. If ANY point is 
-        # found to not be well fit, run push action again 
-        while (True):
-            push_action_endpoints(
-                new_place_point, [new_endpoint_1_point, new_endpoint_2_point], iface, False)
-            img = iface.take_image()
-            depth = img.depth.data
-            print(depth)
-            start = np.array([endpoints[0][0], endpoints[0][1]])
-            end = np.array([endpoints[1][0], endpoints[1][1]])
-            move_vector = (end-start)/np.linalg.norm(end-start)
-            current = copy.deepcopy(start)
-            loop_again = False
-            tolerance = 0.0042
-            interval_scaling = 4
-            print("START: ", start)
-            print("END: ", end)
-            print("MOVE VECTOR: ", move_vector)
-            for count in range(210):
-                curr_depth = depth[int(math.floor(current[1]))][int(
-                    math.floor(current[0]))]
-                depth_lower = depth[int(math.floor(
-                    current[1]+9))][int(math.floor(current[0]))]
-                print("CURRENT POINT: ", [int(math.floor(current[0])), int(math.floor(
-                    current[1]))], " CURRENT DEPTH: ", curr_depth, " DEPTH_LOWER: ", depth_lower)
-                if (curr_depth != 0 and depth_lower != 0 and (abs(depth_lower - curr_depth) > tolerance)):
-                    loop_again = True
-                    print("EXCEEDED DEPTH TOLERANCE!")
-                current[0] += move_vector[0]*interval_scaling
-                current[1] += move_vector[1]*interval_scaling
-            if DISPLAY:
-                plt.imshow(img.depth.data, interpolation="nearest")
-                plt.show()
-            if not loop_again:
-                break
+    # if not PUSH_DETECT:
+    #     push_action_endpoints(
+    #         new_place_point, [new_endpoint_1_point, new_endpoint_2_point], iface)
+    # else:
+    #     # Move across the entire length of cable in interval and see if any point is not well fit. If ANY point is 
+    #     # found to not be well fit, run push action again 
+    #     while (True):
+    #         push_action_endpoints(
+    #             new_place_point, [new_endpoint_1_point, new_endpoint_2_point], iface, False)
+    #         img = iface.take_image()
+    #         depth = img.depth.data
+    #         print(depth)
+    #         start = np.array([endpoints[0][0], endpoints[0][1]])
+    #         end = np.array([endpoints[1][0], endpoints[1][1]])
+    #         move_vector = (end-start)/np.linalg.norm(end-start)
+    #         current = copy.deepcopy(start)
+    #         loop_again = False
+    #         tolerance = 0.0042
+    #         interval_scaling = 4
+    #         print("START: ", start)
+    #         print("END: ", end)
+    #         print("MOVE VECTOR: ", move_vector)
+    #         for count in range(210):
+    #             curr_depth = depth[int(math.floor(current[1]))][int(
+    #                 math.floor(current[0]))]
+    #             depth_lower = depth[int(math.floor(
+    #                 current[1]+9))][int(math.floor(current[0]))]
+    #             print("CURRENT POINT: ", [int(math.floor(current[0])), int(math.floor(
+    #                 current[1]))], " CURRENT DEPTH: ", curr_depth, " DEPTH_LOWER: ", depth_lower)
+    #             if (curr_depth != 0 and depth_lower != 0 and (abs(depth_lower - curr_depth) > tolerance)):
+    #                 loop_again = True
+    #                 print("EXCEEDED DEPTH TOLERANCE!")
+    #             current[0] += move_vector[0]*interval_scaling
+    #             current[1] += move_vector[1]*interval_scaling
+    #         if DISPLAY:
+    #             plt.imshow(img.depth.data, interpolation="nearest")
+    #             plt.show()
+    #         if not loop_again:
+    #             break
 
 print("Done with script, can end")

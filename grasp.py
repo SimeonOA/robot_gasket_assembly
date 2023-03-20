@@ -290,6 +290,7 @@ class GraspSelector:
         visited = set()
         print("Loc", loc)
         start_point = self.ij_to_point(loc).data
+        print("start_point", start_point)
         start_color = self.color[loc[1]][loc[0]]
         RADIUS2 = 1  # distance from original point before termination
         CLOSE2 = .002**2
@@ -339,13 +340,14 @@ class GraspSelector:
 
         return PointCloud(np.array(pts).T, "base_link"), PointCloud(np.array(closepts).T, "base_link").mean(), waypoints
 
-    def segment_channel(self, loc):
+    def segment_channel(self, loc, use_pixel = False):
         '''
         returns a PointCloud corresponding to cable points along the provided location
         inside the depth image
         '''
         q = [loc]
         pts = []
+        pts_pixels = []
         closepts = []
         visited = set()
         start_point = self.ij_to_point(loc).data
@@ -360,11 +362,13 @@ class GraspSelector:
         while len(q) > 0:
             next_loc = q.pop()
             next_point = self.ij_to_point(next_loc).data
+            # Next Point Example: [0.33499247 0.00217638 0.05645943]
             visited.add(next_loc)
             diff = start_point-next_point
             dist = diff.dot(diff)
             if (dist > RADIUS2):
                 continue
+            pts_pixels.append(next_loc)
             pts.append(next_point)
             # has us updating the list of points to our waypoint
             if counter % 800 == 0:
@@ -383,12 +387,21 @@ class GraspSelector:
                 test_pt = self.ij_to_point(test_loc).data
                 if (abs(test_pt[2]-next_point[2]) < DELTA):
                     q.append(test_loc)
-        return PointCloud(np.array(pts).T, "base_link"), PointCloud(np.array(closepts).T, "base_link").mean(), waypoints, endpoints
+        if (use_pixel == False):
+            return PointCloud(np.array(pts).T, "base_link"), PointCloud(np.array(closepts).T, "base_link").mean(), waypoints, endpoints
+        else:
+            return pts_pixels, PointCloud(np.array(pts).T, "base_link"), PointCloud(np.array(closepts).T, "base_link").mean(), waypoints, endpoints
+        
 
     def ij_to_point(self, loc):
+        # print("Depth", self.depth)
+        # print("Width", self.depth.width)
+        # print("loc[1]", loc[1])
+        # print("loc[0]", loc[0])
         lin_ind = self.depth.width*loc[1]+loc[0]
         #print("This is LIN_IND", lin_ind)
         #lin_ind = int(lin_ind)
+        # print(len(self.points_3d.data))
         return self.points_3d[lin_ind]
 
     def princ_axis(self, points):

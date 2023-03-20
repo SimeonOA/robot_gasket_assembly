@@ -17,6 +17,11 @@ import time
 import os
 import sys
 import traceback
+from skimage.morphology import skeletonize
+from skimage import data
+import matplotlib.pyplot as plt
+from skimage.util import invert
+
 cable = os.path.dirname(os.path.abspath(__file__)) + "/../../cable_untangling"
 sys.path.insert(0, cable)
 behavior_cloning_path = os.path.dirname(os.path.abspath(
@@ -252,7 +257,188 @@ def push_down(point, depth=0.012):
 
     return None
 
+# Function to check the index of a  
+def check_index(p_array, part, ind = False):
+    newp_array = p_array.T
+    # print("newp_array:", newp_array)
+    p_shape = newp_array.shape
+    check = np.where(newp_array == part)
+    # print ("check[0]:", check[0])
+    # print ("len(check[0]):", len(check[0]))
+    # print ("part:", part)
+    # print ("len(part):", len(part))
+    if len(check[0]) != len(part):
+        return False
+    else:
+        if ind == True:
+            return check[0][0]
+        return(np.all(np.isclose(check[0], check[0][0])))
+    
+def determine_length(object_points, endpoint_list, waypoints_list):
+    visited = set()
+    distances_list = dict()
+    waypoint_found = dict()
+    waypoints_sorted = [] 
+    start_point = [int(endpoint_list[0][0]), int(endpoint_list[0][1])]
+    end_point = [int(endpoint_list[1][0]), int(endpoint_list[1][1])]
+    waypoints_sorted.append(start_point)
+    import pdb
+    pdb.set_trace()
+    start_point_adj = g.ij_to_point(start_point).data
+    end_point_adj = g.ij_to_point(end_point).data
+    q = [start_point_adj]
+    test_loc_temp= [start_point_adj[0], start_point_adj[1], start_point_adj[2]] 
+    NEIGHS = [-1,  1]
+    counter = 0
+    copy_waypoints = np.array([g.ij_to_point(waypoint).data for waypoint in waypoints_list])
+    copy_waypoints_dict = dict([((g.ij_to_point(waypoint).data[0], g.ij_to_point(waypoint).data[1],\
+                                  g.ij_to_point(waypoint).data[2]), waypoint) for waypoint in waypoints_list])
 
+    while len(q) > 0:  
+        next_loc = q.pop()
+        # if next_loc == start_point_adj:
+        if (next_loc == start_point_adj).all():
+            visited.add((start_point_adj[0], start_point_adj[1], start_point_adj[2]))
+        else:
+            visited.add(tuple(start_point_adj))
+        #return index of next_point in object_points
+        index = check_index(object_points.data, next_loc, ind = True)
+        require = False
+        min_dist = float('inf')
+        for n in NEIGHS:
+            test_loc = object_points.data.T[index+n]
+            # print("Test_loc:", test_loc)
+            # print("End Point Adj:", end_point_adj)
+            if (test_loc == end_point_adj).all():
+                break
+            else: 
+                if np.any(np.all(test_loc == copy_waypoints, axis=1)):
+                    if (tuple(test_loc) in visited):
+                        continue
+                    require = True
+                    diff = test_loc_temp-test_loc
+                    dist = diff.dot(diff)
+                    waypoint_found[dist] = test_loc
+                    if dist < min_dist:
+                        min_dist = dist
+                else:
+                    q.append(test_loc)
+        counter += 1
+        if require == True:  
+            distances_list[waypoint_found[min_dist]]= min_dist
+            test_loc_temp = waypoint_found[min_dist]
+            q.append(test_loc_temp)
+            waypoints_sorted.append(copy_waypoints_dict[test_loc_temp])
+        # if counter % 1000 == 0:
+        #     print("counter:", counter)
+    return sum(distances_list.values()), waypoints_sorted
+
+def determine_length_pixels(endpoint_list,waypoints_sorted):
+    pixel_distance = waypoints_sorted[0] - endpoint_list[0] 
+    total_dist = pixel_distance.dot(pixel_distance)
+    for i in range(1, len(waypoints_sorted)):
+        pixel_distance = waypoints_sorted[i]- waypoints_sorted[i-1]
+        total_dist += pixel_distance.dot(pixel_distance)
+    pixel_distance = endpoint_list[1]- waypoints_sorted[len(waypoints_sorted)]
+    total_dist += pixel_distance.dot(pixel_distance)
+    return total_dist
+    
+    
+def dfs_resample(distance,sample_no, segmented_cloud):
+    sampling_index = distance/sample_no
+    new_transf = iface.T_PHOXI_BASE.inverse()
+    transformed_segmented_cloud = new_transf.apply(segmented_cloud)
+    cloud_image = iface.cam.intrinsics.project_to_image(
+        transformed_rope_cloud, round_px=False)
+    kernel = np.ones((6, 6), np.uint8)
+    image = cv2.erode(image, kernel)
+
+def evenly_sample_points_dist(points, num_points, distance):
+    selected_points = []
+    # getting the first endpoints in
+    selected_points.append(points[0])
+    selected_points.append(points[-1])
+    while len(selected_points) < num_points:
+        dists = np.array([np.linalg.norm(p-sp) for sp in selected_points for p in points])
+        dists = dists.reshape(len(selected_points), len(points))
+        num_close_pts = np.sum(dists <= distance, axis = 0)
+        next_point_idx = np.argmax(num_close_pts)
+        next_point = points[next_point_idx]
+        selected_points.append(next_point)
+        points = np.delete(points, next_point_idx, axis = 0)
+    return selected_points
+
+
+def evenly_sample_points(points,num_points):
+    selected_points = []
+    # getting the first endpoints in
+    selected_points.append(points[0])
+    selected_points.append(points[-1])
+    while len(selected_points) < num_points:
+        dists = np.array([min([np.linalg.norm(p-sp)]) for sp in selected_points] for p in points)
+        next_point_idx = np.argmax(dists)
+        next_point = points[next_point_idx]
+        selected_points.append(next_point)
+    return selected_points
+
+def make_bounding_boxes(img):
+    # import pdb
+    # pdb.set_trace()
+    # img = iface.take_image()
+    # convert to grayscale
+    gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+
+    # threshold
+    thresh = cv2.threshold(gray,30,255,cv2.THRESH_BINARY)[1]
+
+    # get contours
+    result = img.copy()
+    contours = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours = contours[0] if len(contours) == 2 else contours[1]
+    for cntr in contours:
+        x,y,w,h = cv2.boundingRect(cntr)
+        cv2.rectangle(result, (x, y), (x+w, y+h), (0, 0, 255), 2)
+        print("x,y,w,h:",x,y,w,h)
+    
+    # save resulting image
+    # cv2.imwrite('two_blobs_result.jpg',result)      
+
+    # show thresh and result    
+    plt.imshow(result, interpolation="nearest")
+    plt.show()
+
+    return result
+
+def skeletonize_img(img):
+    # Invert the horse image
+    
+    gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+
+    # threshold
+    image = cv2.threshold(gray,30,1,cv2.THRESH_BINARY)[1]
+
+    kernel = np.ones((3, 3), np.uint8)
+    image = cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel)
+
+    # perform skeletonization
+    skeleton = skeletonize(image)
+
+    # display results
+    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(8, 4),
+                            sharex=True, sharey=True)
+
+    ax = axes.ravel()
+
+    ax[0].imshow(image, cmap=plt.cm.gray)
+    ax[0].axis('off')
+    ax[0].set_title('original', fontsize=20)
+
+    ax[1].imshow(skeleton, cmap=plt.cm.gray)
+    ax[1].axis('off')
+    ax[1].set_title('skeleton', fontsize=20)
+
+    fig.tight_layout()
+    plt.show()
 
 original_channel_waypoints = []
 original_depth_image_scan = None
@@ -602,7 +788,9 @@ try:
         if DISPLAY:
             plt.imshow(di._image_data(), interpolation="nearest")
             plt.show()
-
+        
+        make_bounding_boxes(di._image_data())
+        skeletonize_img(di._image_data())
         
         
         ### MODIFIED BY KARIM AFTER COMMENTING OUT CORY"S CODE
@@ -1045,7 +1233,17 @@ try:
         # upper = 255
 
         channel_start_d = (channel_start[1], channel_start[0])
-        channel_cloud, _, channel_waypoints, possible_channel_end_pts = g.segment_channel(channel_start_d)
+        # channel_cloud, _, channel_waypoints, possible_channel_end_pts = g.segment_channel(channel_start_d)
+        channel_cloud_pixels, channel_cloud, _, channel_waypoints, possible_channel_end_pts = \
+            g.segment_channel(channel_start_d, use_pixel=True)
+        waypoint_first= g.ij_to_point(channel_waypoints[0]).data
+        print('channel cloud shape', channel_cloud.shape)
+        print('channel waypoints one case:', channel_waypoints[0])
+        print('channel waypoints one case adjusted', waypoint_first)
+        print('channel cloud one case', channel_cloud[-1])
+        print('channel cloud one case', channel_cloud.data[-1])
+        print('channel cloud', channel_cloud)
+        print('location test', np.where(channel_cloud.data == channel_cloud.data[-1]))
         print('channel waypoints', channel_waypoints)
         plt.scatter(x = [j[1] for j in channel_waypoints], y=[i[0] for i in channel_waypoints],c='c')
         plt.scatter(x = [j[1] for j in cable_waypoints], y=[i[0] for i in cable_waypoints],c='0.75')
@@ -1059,6 +1257,8 @@ try:
         image_channel = iface.cam.intrinsics.project_to_image(
             transformed_channel_cloud, round_px=False)  # should this be transformed_channel_cloud?
         image_channel_data = image_channel._image_data()
+        make_bounding_boxes(image_channel_data)
+        skeletonize_img(image_channel_data)
         copy_channel_data = copy.deepcopy(image_channel_data)
         lower = 80
         upper = 255
@@ -1084,6 +1284,7 @@ try:
                     copy_channel_data[r][c][1] = 255.0
                     copy_channel_data[r][c][2] = 255.0
         img_skeleton = cv2.cvtColor(copy_channel_data, cv2.COLOR_RGB2GRAY)
+
         features = cv2.goodFeaturesToTrack(img_skeleton, 10, 0.01, 200)
         print("OPEN CV2 FOUND FEATURES: ", features)
         endpoints = [x[0] for x in features]
@@ -1106,6 +1307,7 @@ try:
         endpoints = [closest_to_origin, furthest_from_origin]
         print("ENDPOINTS SELECTED: " + str(endpoints))
         if DISPLAY:
+            print("img skeleton")
             plt.scatter(x=[j[0][0] for j in features], y = [j[0][1] for j in features], c = '0.2')
             plt.scatter(x=[j[0] for j in endpoints], y = [j[1] for j in endpoints], c = 'm')
             plt.imshow(img_skeleton, interpolation="nearest")
@@ -1124,6 +1326,15 @@ try:
         print("ACTUAL PLACE: "+str(place))
         print("ACTUAL PLACE 2: "+str(place_2))
         
+
+        len_3d, channel_waypoints_sorted = determine_length(channel_cloud, endpoints, channel_waypoints)
+        print("Len 3D", len_3d)
+        print("Channel Waypoints Sorted", channel_waypoints_sorted)
+        
+        len_pixel = determine_length_pixels(endpoints, channel_waypoints_sorted) 
+        print("Len Pixel:", len_pixel)
+
+
 
 
     #### FINDING ENDPOINTS OF THE CABLE ##################
@@ -1204,8 +1415,10 @@ try:
 
         ##### THE ORDER IN WHICH YOU PICK AND PLACE POINTS SHOULD BE 
         linalg_norm = lambda x,y: np.sqrt((x[0]-y[1])**2 + (x[1]-y[0])**2)
-        # INSERT BFS CODE HERE!!!   
-        
+        # INSERT BFS CODE HERE!!!  
+         
+
+            
         # our new "place" i.e. channel endpoint relative to where we pick waypoints is the prev_channel_pt
         # we want to update this for the next interation as well
         sorted_channel_waypoints = sorted(channel_waypoints, key = lambda x: linalg_norm(place , x))

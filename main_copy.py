@@ -282,8 +282,8 @@ def determine_length(object_points, endpoint_list, waypoints_list):
     start_point = [int(endpoint_list[0][0]), int(endpoint_list[0][1])]
     end_point = [int(endpoint_list[1][0]), int(endpoint_list[1][1])]
     waypoints_sorted.append(start_point)
-    import pdb
-    pdb.set_trace()
+    # import pdb
+    # pdb.set_trace()
     start_point_adj = g.ij_to_point(start_point).data
     end_point_adj = g.ij_to_point(end_point).data
     q = [start_point_adj]
@@ -420,8 +420,13 @@ def skeletonize_img(img):
     kernel = np.ones((3, 3), np.uint8)
     image = cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel)
 
+
+    blurred_image = gaussian_filter(image, sigma=1)
+
     # perform skeletonization
-    skeleton = skeletonize(image)
+    skeleton = skeletonize(blurred_image)
+
+    #find candidates who 
 
     # display results
     fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(8, 4),
@@ -439,6 +444,75 @@ def skeletonize_img(img):
 
     fig.tight_layout()
     plt.show()
+
+    return skeleton
+
+def find_length_and_endpoints(skeleton_img):
+    nonzero_pts = None
+    nonzero_pts = cv2.findNonZero(np.float32(skeleton_img))
+    total_length = len(nonzero_pts)
+    import pdb 
+    pdb.set_trace()
+    start_pt = (nonzero_pts[0][0][1], nonzero_pts[0][0][0])
+    # run dfs from this start_pt, when we encounter a point with no more non-visited neighbors that is an endpoint
+    endpoints = []
+    NEIGHS = [(-1, 0), (1, 0), (0, 1), (0, -1), (-1,-1), (-1,1), (1,-1),(1,1)]
+    visited = set()
+    q = [start_pt]
+    dist_q = [0]
+    # tells us if the first thing we look at is actually an endpoint
+    initial_endpoint = False
+    # carry out floodfill
+    q = [start_pt]
+    # carry out floodfill
+    length_checker = 0
+    while len(q) > 0:
+        next_loc = q.pop()
+        distance = dist_q.pop()
+        visited.add(next_loc)
+        counter = 0
+        for n in NEIGHS:
+            test_loc = (next_loc[0]+n[0], next_loc[1]+n[1])
+            if (test_loc in visited):
+                continue
+            if test_loc[0] >= len(skeleton_img[0]) or test_loc[0] < 0 \
+                    or test_loc[1] >= len(skeleton_img[0]) or test_loc[1] < 0:
+                continue
+            if skeleton_img[test_loc[0]][test_loc[1]] == True:
+                counter += 1
+                length_checker += 1
+                q.append(test_loc)
+                dist_q.append(distance+1)
+        # this means we haven't added anyone else to the q so we "should" be at an endpoint
+        if counter == 0:
+            endpoints.append([next_loc, distance])
+        if next_loc == start_pt and counter == 1:
+            endpoints.append([next_loc, distance])
+            initial_endpoint = True
+
+    pdb.set_trace()
+    final_endpoints = []
+    largest = second_largest = None
+    for pt, distance in endpoints:
+        if largest is None or distance > endpoints[largest][1]:
+            second_largest = largest
+            largest = endpoints.index([pt, distance])
+        elif second_largest is None or distance > endpoints[second_largest][1]:
+            second_largest = endpoints.index([pt, distance])
+    if initial_endpoint:
+        final_endpoints = [endpoints[0][0], endpoints[largest][0]]
+    else:
+        final_endpoints = [endpoints[second_largest][0], endpoints[largest][0]]
+
+    plt.scatter(x = [j[0][1] for j in endpoints], y=[i[0][0] for i in endpoints],c='w')
+    plt.imshow(skeleton_img, interpolation="nearest")
+    plt.show() 
+    # display results
+    
+    # display results 
+
+    print("the total length is ", total_length)
+    return total_length, final_endpoints
 
 original_channel_waypoints = []
 original_depth_image_scan = None
@@ -790,8 +864,9 @@ try:
             plt.show()
         
         make_bounding_boxes(di._image_data())
-        skeletonize_img(di._image_data())
+        cable_skeleton = skeletonize_img(di._image_data())
         
+        cable_len, cable_endpoints_1 = find_length_and_endpoints(cable_skeleton)
         
         ### MODIFIED BY KARIM AFTER COMMENTING OUT CORY"S CODE
         delete_later = []
@@ -1257,8 +1332,14 @@ try:
         image_channel = iface.cam.intrinsics.project_to_image(
             transformed_channel_cloud, round_px=False)  # should this be transformed_channel_cloud?
         image_channel_data = image_channel._image_data()
+        
         make_bounding_boxes(image_channel_data)
-        skeletonize_img(image_channel_data)
+        
+        channel_skeleton = skeletonize_img(image_channel_data)
+
+        find_length_and_endpoints(channel_skeleton)
+
+
         copy_channel_data = copy.deepcopy(image_channel_data)
         lower = 80
         upper = 255

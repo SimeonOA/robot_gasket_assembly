@@ -294,7 +294,7 @@ class GraspSelector:
         start_color = self.color[loc[1]][loc[0]]
         RADIUS2 = 1  # distance from original point before termination
         CLOSE2 = .002**2
-        DELTA = .00075
+        DELTA = .00080#.00075
         NEIGHS = [(-1, 0), (1, 0), (0, 1), (0, -1)]
         COLOR_THRESHOLD = 100
         counter = 0

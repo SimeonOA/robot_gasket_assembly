@@ -21,6 +21,7 @@ from skimage.morphology import skeletonize
 from skimage import data
 import matplotlib.pyplot as plt
 from skimage.util import invert
+import pdb
 
 cable = os.path.dirname(os.path.abspath(__file__)) + "/../../cable_untangling"
 sys.path.insert(0, cable)
@@ -382,9 +383,6 @@ def evenly_sample_points(points,num_points):
     return selected_points
 
 def make_bounding_boxes(img):
-    # import pdb
-    # pdb.set_trace()
-    # img = iface.take_image()
     # convert to grayscale
     gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
 
@@ -448,11 +446,11 @@ def skeletonize_img(img):
     return skeleton
 
 def find_length_and_endpoints(skeleton_img):
+    #### IDEA: do DFS but have a left and right DFS with distances for one being negative and the other being positive 
     nonzero_pts = None
     nonzero_pts = cv2.findNonZero(np.float32(skeleton_img))
     total_length = len(nonzero_pts)
-    import pdb 
-    pdb.set_trace()
+    # pdb.set_trace()
     start_pt = (nonzero_pts[0][0][1], nonzero_pts[0][0][0])
     # run dfs from this start_pt, when we encounter a point with no more non-visited neighbors that is an endpoint
     endpoints = []
@@ -465,54 +463,91 @@ def find_length_and_endpoints(skeleton_img):
     # carry out floodfill
     q = [start_pt]
     # carry out floodfill
+    def dfs(q, dist_q, visited, increment_amt):
+        while len(q) > 0:
+            next_loc = q.pop()
+            distance = dist_q.pop()
+            visited.add(next_loc)
+            counter = 0
+            for n in NEIGHS:
+                test_loc = (next_loc[0]+n[0], next_loc[1]+n[1])
+                if (test_loc in visited):
+                    continue
+                if test_loc[0] >= len(skeleton_img[0]) or test_loc[0] < 0 \
+                        or test_loc[1] >= len(skeleton_img[0]) or test_loc[1] < 0:
+                    continue
+                if skeleton_img[test_loc[0]][test_loc[1]] == True:
+                    counter += 1
+                    #length_checker += 1
+                    q.append(test_loc)
+                    dist_q.append(distance+increment_amt)
+            # this means we haven't added anyone else to the q so we "should" be at an endpoint
+            if counter == 0:
+                endpoints.append([next_loc, distance])
+            # if next_loc == start_pt and counter == 1:
+            #     endpoints.append([next_loc, distance])
+            #     initial_endpoint = True
+    counter = 0
     length_checker = 0
-    while len(q) > 0:
-        next_loc = q.pop()
-        distance = dist_q.pop()
-        visited.add(next_loc)
-        counter = 0
-        for n in NEIGHS:
-            test_loc = (next_loc[0]+n[0], next_loc[1]+n[1])
-            if (test_loc in visited):
-                continue
-            if test_loc[0] >= len(skeleton_img[0]) or test_loc[0] < 0 \
-                    or test_loc[1] >= len(skeleton_img[0]) or test_loc[1] < 0:
-                continue
-            if skeleton_img[test_loc[0]][test_loc[1]] == True:
-                counter += 1
-                length_checker += 1
-                q.append(test_loc)
-                dist_q.append(distance+1)
-        # this means we haven't added anyone else to the q so we "should" be at an endpoint
-        if counter == 0:
-            endpoints.append([next_loc, distance])
-        if next_loc == start_pt and counter == 1:
-            endpoints.append([next_loc, distance])
-            initial_endpoint = True
+    increment_amt = 1
+    visited = set([start_pt])
+    for n in NEIGHS:
+        test_loc = (start_pt[0]+n[0], start_pt[1]+n[1])
+        # one of the neighbors is valued at one so we can dfs across it
+        if skeleton_img[test_loc[0]][test_loc[1]] == True:
+            counter += 1
+            q = [test_loc]
+            dist_q = [0]
+            dfs(q, dist_q, visited, increment_amt)
+            # the first time our distance will be incrementing but the second time
+            # , i.e. when dfs'ing the opposite direction our distance will be negative to differentiate both paths
+            increment_amt = -1
+    # we only have one neighbor therefore we must be an endpoint
+    if counter == 1:
+        distance = 0
+        endpoints.append([start_pt, distance])
+        initial_endpoint = True
 
     pdb.set_trace()
     final_endpoints = []
-    largest = second_largest = None
+    # largest = second_largest = None
+    # for pt, distance in endpoints:
+    #     if largest is None or distance > endpoints[largest][1]:
+    #         second_largest = largest
+    #         largest = endpoints.index([pt, distance])
+    #     elif second_largest is None or distance > endpoints[second_largest][1]:
+    #         second_largest = endpoints.index([pt, distance])
+    # if initial_endpoint:
+    #     final_endpoints = [endpoints[0][0], endpoints[largest][0]]
+    # else:
+    #     final_endpoints = [endpoints[second_largest][0], endpoints[largest][0]]
+    
+    largest_pos = largest_neg = None
     for pt, distance in endpoints:
-        if largest is None or distance > endpoints[largest][1]:
-            second_largest = largest
-            largest = endpoints.index([pt, distance])
-        elif second_largest is None or distance > endpoints[second_largest][1]:
-            second_largest = endpoints.index([pt, distance])
+        if largest_pos is None or distance > endpoints[largest_pos][1]:
+            largest_pos = endpoints.index([pt, distance])
+        elif largest_neg is None or distance < endpoints[largest_neg][1]:
+            largest_neg = endpoints.index([pt, distance])
     if initial_endpoint:
-        final_endpoints = [endpoints[0][0], endpoints[largest][0]]
+        final_endpoints = [endpoints[0][0], endpoints[largest_pos][0]]
     else:
-        final_endpoints = [endpoints[second_largest][0], endpoints[largest][0]]
-
+        final_endpoints = [endpoints[largest_neg][0], endpoints[largest_pos][0]]
+    
     plt.scatter(x = [j[0][1] for j in endpoints], y=[i[0][0] for i in endpoints],c='w')
+    plt.scatter(x = [final_endpoints[1][1]], y=[final_endpoints[1][0]],c='b')
+    plt.scatter(x = [final_endpoints[0][1]], y=[final_endpoints[0][0]],c='r')
+    plt.scatter(x=start_pt[1], y=start_pt[0], c='g')
     plt.imshow(skeleton_img, interpolation="nearest")
     plt.show() 
+    pdb.set_trace()
     # display results
-    
-    # display results 
 
     print("the total length is ", total_length)
     return total_length, final_endpoints
+
+
+
+
 
 original_channel_waypoints = []
 original_depth_image_scan = None
@@ -817,12 +852,16 @@ try:
                 index += 1
                 continue
             for add in range(1, 8):
+                # once we've found a suitable cable point we want to just exit
+                if cable_pt != (0,0):
+                    break
                 if (r-add < 0 or c-add < 0) or (r+add >= len(three_mat_depth) or c+add >= len(three_mat_depth[r])):
                     break
                 # left - right
                 diff1 = abs(three_mat_depth[r-add][c] - three_mat_depth[r+add][c])
                 diff2 = abs(three_mat_depth[r][c-add] - three_mat_depth[r][c+add])
                 if 0.01 <= diff1 < 0.020: # prev upper was 0.016
+                    # the depth that is lower (i.e. point is closer to the camera is the point that is actually on the cable)
                     if three_mat_depth[r-add][c] > three_mat_depth[r+add][c]:
                         cable_pt = (r+add, c)
                     else:
@@ -1335,9 +1374,10 @@ try:
         
         make_bounding_boxes(image_channel_data)
         
+        image_channel_data = gaussian_filter(image_channel_data, sigma=1)
         channel_skeleton = skeletonize_img(image_channel_data)
 
-        find_length_and_endpoints(channel_skeleton)
+        channel_len, channel_endpoints = find_length_and_endpoints(channel_skeleton)
 
 
         copy_channel_data = copy.deepcopy(image_channel_data)

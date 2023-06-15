@@ -32,6 +32,8 @@ sys.path.insert(0, behavior_cloning_path)
 DISPLAY = True
 TWO_ENDS = False
 PUSH_DETECT = True
+# used to get the relative depths for flattening the depth image
+CALIBRATE = False
 
 
 # SPEED=(.5,6*np.pi)
@@ -508,7 +510,7 @@ def find_length_and_endpoints(skeleton_img):
         endpoints.append([start_pt, distance])
         initial_endpoint = True
 
-    pdb.set_trace()
+    # pdb.set_trace()
     final_endpoints = []
     # largest = second_largest = None
     # for pt, distance in endpoints:
@@ -534,12 +536,12 @@ def find_length_and_endpoints(skeleton_img):
         final_endpoints = [endpoints[largest_neg][0], endpoints[largest_pos][0]]
     
     plt.scatter(x = [j[0][1] for j in endpoints], y=[i[0][0] for i in endpoints],c='w')
-    plt.scatter(x = [final_endpoints[1][1]], y=[final_endpoints[1][0]],c='b')
+    plt.scatter(x = [final_endpoints[1][1]], y=[final_endpoints[1][0]],c='r')
     plt.scatter(x = [final_endpoints[0][1]], y=[final_endpoints[0][0]],c='r')
     plt.scatter(x=start_pt[1], y=start_pt[0], c='g')
     plt.imshow(skeleton_img, interpolation="nearest")
     plt.show() 
-    pdb.set_trace()
+    # pdb.set_trace()
     # display results
 
     print("the total length is ", total_length)
@@ -576,6 +578,23 @@ try:
         if original_depth_image_scan is None:
             original_depth_image_scan = three_mat_depth
         last_depth_image_scan = three_mat_depth
+
+        if CALIBRATE:
+            highest_depth = np.max(three_mat_depth)
+            mask = (np.ones(three_mat_depth.shape)*highest_depth) - three_mat_depth
+            # ensures that those 0 null values in the original scan are still set to 0
+            mask[mask > 0.5] = 0
+            with open('flat_table_depth_mask.npy', "wb") as f:
+                np.save(f, mask, allow_pickle=False)
+        else:
+            with open('flat_table_depth_mask.npy', "rb") as f:
+                mask = np.load(f)
+        # levels out all of the pixels so that the workspace is treated as flat
+        print(mask)
+        three_mat_depth_flat = mask + three_mat_depth
+
+        plt.imshow(three_mat_depth_flat, interpolation='nearest')
+        plt.show()
 
         edges_pre = np.uint8(three_mat_depth*10)
         edges = cv2.Canny(edges_pre,10,20)
@@ -891,8 +910,28 @@ try:
 
         print("Starting segment_cable pt: "+str(max_scoring_loc))
         # ----------------------Segment
-        rope_cloud, _, cable_waypoints = g.segment_cable(loc)
+        rope_cloud, _, cable_waypoints, weird_pts = g.segment_cable(loc)
         # ----------------------Remove block
+
+        # plt.imshow(img.color.data, interpolation="nearest")
+        # plt.show()
+
+        fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(8, 4),
+                            sharex=True, sharey=True)
+
+        ax = axes.ravel()
+        plt.scatter(x = [j[1] for j in weird_pts], y=[i[0] for i in weird_pts],c='w')
+        ax[0].imshow(img.color.data, cmap=plt.cm.gray)
+        ax[0].axis('off')
+        ax[0].set_title('color', fontsize=20)
+
+        ax[1].imshow(edges, cmap=plt.cm.gray)
+        ax[1].axis('off')
+        ax[1].set_title('edge', fontsize=20)
+
+        fig.tight_layout()
+        plt.show()
+
 
         new_transf = iface.T_PHOXI_BASE.inverse()
         transformed_rope_cloud = new_transf.apply(rope_cloud)

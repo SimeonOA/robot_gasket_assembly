@@ -9,6 +9,7 @@ import numpy as np
 from multiprocessing import Queue, Process
 from random import shuffle
 import math
+import pdb
 
 
 class GraspException(Exception):
@@ -296,9 +297,10 @@ class GraspSelector:
         CLOSE2 = .002**2
         DELTA = .00080#.00075
         NEIGHS = [(-1, 0), (1, 0), (0, 1), (0, -1)]
-        COLOR_THRESHOLD = 100
+        COLOR_THRESHOLD = 45
         counter = 0
         waypoints = []
+        weird_pts = []
         # carry out floodfill
         while len(q) > 0:
             # if we're in orient_mode we only want the local segment of the cable to find the principle axis, not the entire cable
@@ -332,13 +334,17 @@ class GraspSelector:
                 # want to check if the points were adding are of similar color cause the cable is a uniform color
                 # the channel currently is not the same color so this is another method to differentiate between them
                 test_pt = self.ij_to_point(test_loc).data
+                # this is cause the data is grayscaled so we can just look at the Red channel 
                 test_color = np.asarray(self.color[test_loc[1]][test_loc[0]])
+                # pdb.set_trace()
                 test_color = test_color.astype(np.int16)
                 color_diff = np.linalg.norm(next_color-test_color)
+                if (20 < color_diff < 45):
+                    weird_pts.append([test_loc[1], test_loc[0]])
                 if (abs(test_pt[2]-next_point[2]) < DELTA and color_diff < COLOR_THRESHOLD):
                     q.append(test_loc)
 
-        return PointCloud(np.array(pts).T, "base_link"), PointCloud(np.array(closepts).T, "base_link").mean(), waypoints
+        return PointCloud(np.array(pts).T, "base_link"), PointCloud(np.array(closepts).T, "base_link").mean(), waypoints, weird_pts
 
     def segment_channel(self, loc, use_pixel = False):
         '''

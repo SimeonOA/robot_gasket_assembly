@@ -551,6 +551,9 @@ def find_length_and_endpoints(skeleton_img):
 
 
 
+
+######################### MAIN ####################################################################################################### 
+
 original_channel_waypoints = []
 original_depth_image_scan = None
 last_depth_image_scan = None
@@ -558,6 +561,7 @@ channel_endpoints = None
 prev_channel_pt = []
 CABLE_PIXELS_TO_DIST = None
 CHANNEL_PIXELS_TO_DIST = None
+
 try:
     while True:
         iface.home()

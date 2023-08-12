@@ -403,14 +403,14 @@ def make_bounding_boxes(img):
     # save resulting image
     # cv2.imwrite('two_blobs_result.jpg',result)      
 
-    # show thresh and result    
+    # show thresh and result  
+    plt.title("bounding box for detection")  
     plt.imshow(result, interpolation="nearest")
     plt.show()
 
     return result
 
 def skeletonize_img(img):
-    # Invert the horse image
     
     gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
 
@@ -421,10 +421,14 @@ def skeletonize_img(img):
     image = cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel)
 
 
-    blurred_image = gaussian_filter(image, sigma=1)
+    # blurred_image = gaussian_filter(image, sigma=1)
 
+    # dilate the image to just eliminate risk of holes causes severances in the skeleton
+    dilated_img = image.copy()
+    kernel = np.ones((3,3), np.uint8)
+    cv2.dilate(image, kernel, dst=dilated_img, iterations=1)
     # perform skeletonization
-    skeleton = skeletonize(blurred_image)
+    skeleton = skeletonize(dilated_img)
 
     #find candidates who 
 
@@ -448,9 +452,12 @@ def skeletonize_img(img):
     return skeleton
 
 def find_length_and_endpoints(skeleton_img):
+    # instead of doing DFS just do BFS and the last 2 points to have which end up having no non-visited neighbor 
+
     #### IDEA: do DFS but have a left and right DFS with distances for one being negative and the other being positive 
-    nonzero_pts = None
     nonzero_pts = cv2.findNonZero(np.float32(skeleton_img))
+    if nonzero_pts is None:
+        nonzero_pts = [[[0,0]]]
     total_length = len(nonzero_pts)
     # pdb.set_trace()
     start_pt = (nonzero_pts[0][0][1], nonzero_pts[0][0][0])
@@ -538,6 +545,7 @@ def find_length_and_endpoints(skeleton_img):
     plt.scatter(x = [j[0][1] for j in endpoints], y=[i[0][0] for i in endpoints],c='w')
     plt.scatter(x = [final_endpoints[1][1]], y=[final_endpoints[1][0]],c='r')
     plt.scatter(x = [final_endpoints[0][1]], y=[final_endpoints[0][0]],c='r')
+    plt.title("final endpoints")
     plt.scatter(x=start_pt[1], y=start_pt[0], c='g')
     plt.imshow(skeleton_img, interpolation="nearest")
     plt.show() 
@@ -575,10 +583,24 @@ try:
 
         # ----------------------Find brightest pixel for segment_cable
         if DISPLAY:
+            plt.title("color image")
             plt.imshow(img.color.data, interpolation="nearest")
             plt.show()
         three_mat_color = img.color.data
         three_mat_depth = img.depth.data
+        
+        # need to eliminate bottom segment of the workspace cause the dropoff creates weird problems
+        # starting from the top of the image, the amount of pixels we want in the vertical direction
+        vert_pixels = 630  
+        one_mask = np.ones((vert_pixels, 1032))
+        zero_mask = np.zeros((772 - vert_pixels, 1032))
+        full_mask = np.vstack((one_mask, zero_mask))
+        shortened_depth = full_mask * three_mat_depth
+        plt.title('shortened depth')
+        plt.imshow(shortened_depth)
+        plt.show()
+        three_mat_depth = shortened_depth
+
         if original_depth_image_scan is None:
             original_depth_image_scan = three_mat_depth
         last_depth_image_scan = three_mat_depth
@@ -596,14 +618,46 @@ try:
         # levels out all of the pixels so that the workspace is treated as flat
         print(mask)
         three_mat_depth_flat = mask + three_mat_depth
-
+        plt.title("image depth flat")
         plt.imshow(three_mat_depth_flat, interpolation='nearest')
         plt.show()
 
-        edges_pre = np.uint8(three_mat_depth*10)
-        edges = cv2.Canny(edges_pre,10,20)
-        # plt.imshow(edges, cmap = 'gray')
-        # plt.show()
+        plt.title("image depth not flat")
+        plt.imshow(three_mat_depth, interpolation='nearest')
+        plt.show()
+
+        # just need it to be same dimensions as three_mat_depth
+        dilated_depth_img = three_mat_depth.copy()
+        kernel = np.ones((3,3), np.uint8)
+        cv2.dilate(three_mat_depth, kernel, dst=dilated_depth_img, iterations=1)
+        plt.title("dilated depth img")
+        plt.imshow(dilated_depth_img, interpolation='nearest')
+        plt.show()
+
+        # VERY IMPORTANT CHANGE PLEASE DO NOT FORGET ABOUT THIS PLEASE!!!!!
+        # three_mat_depth = dilated_depth_img
+        
+
+        if np.array_equal(three_mat_depth, dilated_depth_img):
+            is_dilated = True
+        else:
+            is_dilated = False   
+
+
+        # WITHOUT DILATION THRESHOLD1 = 10, THRESHOLD2 = 20
+        if is_dilated:
+            edges_pre = np.uint8(three_mat_depth*100.0)
+            plt.imshow(edges_pre, interpolation='nearest')
+            plt.title('edges_pre with dilation')
+            plt.show()
+            edges = cv2.Canny(edges_pre,1,3, L2gradient = False)
+        else:
+            edges_pre = np.uint8(three_mat_depth*10)
+            plt.imshow(edges_pre, interpolation='nearest')
+            plt.title('edges_pre without dilation')
+            plt.show()
+            edges = cv2.Canny(edges_pre,10,20, L2gradient = False)
+
 
     ### Cory's work!!!
         # pixel_r = 0
@@ -705,8 +759,31 @@ try:
         # threshold to allow for error
         depth_threshold = 0.002
 
+        plt.title("canny edges")
         plt.imshow(edges)
         plt.show()
+
+        
+         # testing out using contours instead to try and figure out cable and channels
+        # edges_copy = edges.copy()
+        test = cv2.cvtColor(three_mat_color, cv2.COLOR_BGR2GRAY)
+        cv2.imshow('test', test)
+        cv2.waitKey(0)
+        color_edges = cv2.Canny(test,10,20)
+        cv2.imshow("colored edges", color_edges)
+        cv2.waitKey(0)
+        if not is_dilated:
+            blurred_depth_image = gaussian_filter(three_mat_depth, sigma=1)
+            plt.imshow(blurred_depth_image, interpolation='nearest')
+            plt.title("blurred depth image")
+            plt.show()
+        contours, hierarchy = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        print("num contours: " + str(len(contours)))
+        cv2.drawContours(edges, contours, -1, (255,0,0), 3)
+        cv2.imshow('contours', edges)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+        #  ------------------------------------------
         
 
         #depth_image = cv2.imread(three_mat_depth, cv2.IMREAD_UNCHANGED)
@@ -728,6 +805,13 @@ try:
         # mask = (three_mat_depth ==0).astype(np.uint8)
         # three_mat_depth = cv2.inpaint(three_mat_depth, mask, 7, cv2.INPAINT_NS)
 
+        print('is_dilated', is_dilated)
+        if is_dilated:
+            lower_thresh = 0.01
+            upper_thresh = 0.014
+        else:
+            lower_thresh = 0.01
+            upper_thresh = 0.014
 
         for r in range(len(edges)):
             for c in range(len(edges[r])):
@@ -750,20 +834,8 @@ try:
 
                         if diff1 > 0.03 or diff2 > 0.03 or diff3 > 0.03 or diff4 > 0.03:
                             continue
-                        if 0.01 <= np.mean(np.array([diff1, diff2, diff3, diff4])) <= 0.014:
-                            candidate_channel_pts += [(r,c)]
-
-                        # if 0.01 < diff1 < 0.014 or 0.01 < diff2 < 0.014 or 0.01 < diff3 < 0.014 or 0.01 < diff4 < 0.014:
-                        #     candidate_channel_pts += [(r,c)]     
-                    # throw away values that we know differ by too much, this is cause if you take the avg of diffs 
-                    # if diff1 > 0.02:
-                    #     diff1 = 0
-                    # if diff2 > 0.02:
-                    #     diff2 = 0
-                    # if diff3 > 0.02:
-                    #     diff3 = 0
-                    # if diff4 > 0.02:
-                    #     diff4 = 0 
+                        if lower_thresh <= np.mean(np.array([diff1, diff2, diff3, diff4])) <= upper_thresh:
+                            candidate_channel_pts += [(r,c)]   
                     if diff1 > 0.02 or diff2 > 0.02 or diff3 > 0.02 or diff4 > 0.02:
                         continue
                     if 0.01 <= np.mean(np.array([diff1, diff2, diff3, diff4])) <= 0.014:
@@ -902,8 +974,8 @@ try:
         max_scoring_loc = loc
         print("the cable point is ", cable_pt)
 
-
         plt.imshow(edges, cmap='gray')
+        plt.title("cable and channel detected points")
         plt.scatter(x = [j[1] for j in candidate_channel_pts], y=[i[0] for i in candidate_channel_pts],c='r')
         plt.scatter(x=channel_edge_pt[1], y=channel_edge_pt[0], c='b')
         plt.scatter(x=channel_start[1], y=channel_start[0], c='m')
@@ -924,6 +996,7 @@ try:
                             sharex=True, sharey=True)
 
         ax = axes.ravel()
+        plt.title("weird points for using similar color to remove certain pixels")
         plt.scatter(x = [j[1] for j in weird_pts], y=[i[0] for i in weird_pts],c='w')
         ax[0].imshow(img.color.data, cmap=plt.cm.gray)
         ax[0].axis('off')
@@ -942,6 +1015,7 @@ try:
         di = iface.cam.intrinsics.project_to_image(
             transformed_rope_cloud, round_px=False)
         if DISPLAY:
+            plt.title("depth image, image data")
             plt.imshow(di._image_data(), interpolation="nearest")
             plt.show()
         
@@ -1006,6 +1080,7 @@ try:
 
         new_di = DepthImage(new_di_data.astype(np.float32), frame=di.frame)
         if DISPLAY:
+            plt.title("new_di image data")
             plt.imshow(new_di._image_data(), interpolation="nearest")
             plt.show()
 
@@ -1097,297 +1172,47 @@ try:
             print(test_loc)
             print("scaled: " +
                 str((test_loc[0]*compress_factor, test_loc[1]*compress_factor)))
-        all_solns = []
-        tightness = 0
-        while (True):
-            all_solns = []
-            for r in range(len(compressed_map)):
-                for c in range(len(compressed_map[r])):
-                    if (compressed_map[r][c] != 0):
-                        curr_edges = 0
-                        for add in range(1, 2):
-                            if (compressed_map[min(len(compressed_map)-add, r+add)][c] == 0):
-                                curr_edges += 1
-                            if (compressed_map[max(0, r-add)][c] == 0):
-                                curr_edges += 1
-                            if (compressed_map[r][min(len(compressed_map[0])-add, c+add)] == 0):
-                                curr_edges += 1
-                            if (compressed_map[r][max(0, c-add)] == 0):
-                                curr_edges += 1
-                            if (compressed_map[min(len(compressed_map)-add, r+add)][min(len(compressed_map[0])-add, c+add)] == 0):
-                                curr_edges += 1
-                            if (compressed_map[min(len(compressed_map)-add, r+add)][max(0, c-add)] == 0):
-                                curr_edges += 1
-                            if (compressed_map[max(0, r-add)][min(len(compressed_map[0])-add, c+add)] == 0):
-                                curr_edges += 1
-                            if (compressed_map[max(0, r-add)][max(0, c-add)] == 0):
-                                curr_edges += 1
-                        if (max_edges-tightness <= curr_edges <= max_edges+tightness):
-                            all_solns += [(c, r)]
-            print("ALL SOLUTIONS TIGHTNESS "+str(tightness) + ": "+str(all_solns))
-            if (len(all_solns) >= 2):
-                min_x = 100000
-                max_x = 0
-                for soln in all_solns:
-                    if soln[0] < min_x:
-                        min_x = soln[0]
-                    if soln[0] > max_x:
-                        max_x = soln[0]
-                if (max_x-min_x) > 2:
-                    break
-            tightness += 1
-
-        # origin_x = 0
-        # origin_y = 0
-        # min_dist = 100000000
-        # max_dist = 0
-        # min_all_solns = (0, 0)
-        # max_all_solns = (0, 0)
-        # for soln in all_solns:
-        #     dist = np.linalg.norm(
-        #         np.array([origin_x-soln[1], origin_y-soln[0]]))
-        #     if dist < min_dist:
-        #         min_dist = dist
-        #         min_all_solns = soln
-        #     if TWO_ENDS:
-        #         if dist > max_dist:
-        #             max_dist = dist
-        #             max_all_solns = soln
-
-        # scaled_test_loc = [min_all_solns[0]*compress_factor,
-        #                    min_all_solns[1]*compress_factor]
-        # scaled_test_loc_2 = []
-        # if TWO_ENDS:
-        #     scaled_test_loc_2 = [max_all_solns[0]*compress_factor,
-        #                          max_all_solns[1]*compress_factor]
-        # if (scaled_test_loc[0] != 0):
-        #     scaled_test_loc[0] = scaled_test_loc[0] - int(compress_factor/2)
-        # if (scaled_test_loc[1] != 0):
-        #     scaled_test_loc[1] = scaled_test_loc[1] - int(compress_factor/2)
-        # if TWO_ENDS:
-        #     if (scaled_test_loc_2[0] != 0):
-        #         scaled_test_loc_2[0] = scaled_test_loc_2[0] - \
-        #             int(compress_factor/2)
-        #     if (scaled_test_loc_2[1] != 0):
-        #         scaled_test_loc_2[1] = scaled_test_loc_2[1] - \
-        #             int(compress_factor/2)
-        # if DISPLAY:
-        #     plt.imshow(compressed_map, interpolation="nearest")
-        #     plt.show()
-        # min_dist = 10000
-        # min_dist_2 = 1000
-        # candidate_rope_loc = (0, 0)
-        # candidate_rope_loc_2 = (0, 0)
-        # for r in range(len(new_di_data)):
-        #     for c in range(len(new_di_data[r])):
-        #         if (di_data[r][c][0] != 0):
-        #             dist = np.linalg.norm(
-        #                 np.array([r-scaled_test_loc[1], c-scaled_test_loc[0]]))
-        #             if (dist < min_dist):
-        #                 candidate_rope_loc = (c, r)
-        #                 min_dist = dist
-        #             if TWO_ENDS:
-        #                 dist_2 = np.linalg.norm(
-        #                     np.array([r-scaled_test_loc_2[1], c-scaled_test_loc_2[0]]))
-        #                 if (dist_2 < min_dist_2):
-        #                     candidate_rope_loc_2 = (c, r)
-        #                     min_dist_2 = dist_2
-        # min_loc = candidate_rope_loc
-        # min_loc_2 = (0, 0)
-        # if TWO_ENDS:
-        #     min_loc_2 = candidate_rope_loc_2
-        #     print("FITTED POINT: " + str(min_loc))
-        #     print("FITTED POINT OF OTHER END: " + str(min_loc_2))
-        # if DISPLAY:
-        #     plt.scatter(x=[min_loc[0], min_loc_2[0]], y = [min_loc[1], min_loc_2[1]], c='w')
-        #     plt.scatter(x=[j[0]*compress_factor - int(compress_factor/2) for j in all_solns], y = [j[1]*compress_factor - int(compress_factor/2) for j in all_solns], c='b')
-        #     plt.imshow(new_di_data, interpolation="nearest")
-        #     plt.show()
-
-
-
-
-        # # ----------------------FIND END OF CHANNEL
-        # lower = 254
-        # upper = 256
-        # channel_start = (0, 0)
-        # max_edges = 0
-        # candidate_channel_pts = []
-        
-        # # guess for what 0.5in is in terms of depth
-        # depth_diff_goal = 0.016
-        # # threshold to allow for error
-        # depth_threshold = 0.002
-
-        # plt.imshow(edges)
-        # plt.show()
-        
-
-        # #depth_image = cv2.imread(three_mat_depth, cv2.IMREAD_UNCHANGED)
-        
-        # # performing image in painting, to remove all of the 0 values in the depth image with an average
-        # # zero_pixels = np.where(three_mat_depth == 0)
-
-        # # for i in range(len(zero_pixels[0])):
-        # #     x = zero_pixels[0][i]
-        # #     y = zero_pixels[1][i]
-
-        # #     patch_size = 5
-        # #     patch = three_mat_depth[x-patch_size:x+patch_size+1, y-patch_size:y+patch_size+1]
-        # #     patch_nonzero = patch[np.nonzero(patch)]
-        # #     avg_value = np.mean(patch)
-        # #     if 0 < x < len(three_mat_depth[0]) and 0 < y < len(three_mat_depth):
-        # #         three_mat_depth[x,y] = three_mat_depth[x-1,y]
-
-        # # mask = (three_mat_depth ==0).astype(np.uint8)
-        # # three_mat_depth = cv2.inpaint(three_mat_depth, mask, 7, cv2.INPAINT_NS)
-
-
-        # for r in range(len(edges)):
-        #     for c in range(len(edges[r])):
-        #         if (lower < edges[r][c]< upper):
-        #             diff1 = 0
-        #             diff2 = 0
-        #             diff3 = 0
-        #             diff4 = 0
-        #             for add in range(1, 4):
-        #                 if (r-add < 0 or c-add < 0) or (r+add >= len(three_mat_depth) or c+add >= len(three_mat_depth[r])):
-        #                     break
-        #                 # top - bottom
-        #                 diff1 = abs(three_mat_depth[r-add][c] - three_mat_depth[r+add][c]) 
-        #                 # left - right
-        #                 diff2 = abs(three_mat_depth[r][c-add] - three_mat_depth[r][c+add])
-        #                 # top left - bottom right
-        #                 diff3 = abs(three_mat_depth[r-add][c-add] - three_mat_depth[r+add][r+add])
-        #                 # top right - bottom left
-        #                 diff4 = abs(three_mat_depth[r-add][c+add] - three_mat_depth[r+add][r-add])
-
-        #                 # if 0.01 < diff1 < 0.014 or 0.01 < diff2 < 0.014 or 0.01 < diff3 < 0.014 or 0.01 < diff4 < 0.014:
-        #                 #     candidate_channel_pts += [(r,c)]     
-        #             # throw away values that we know differ by too much, this is cause if you take the avg of diffs 
-        #             # if diff1 > 0.02:
-        #             #     diff1 = 0
-        #             # if diff2 > 0.02:
-        #             #     diff2 = 0
-        #             # if diff3 > 0.02:
-        #             #     diff3 = 0
-        #             # if diff4 > 0.02:
-        #             #     diff4 = 0 
-        #             if diff1 > 0.02 or diff2 > 0.02 or diff3 > 0.02 or diff4 > 0.02:
-        #                 continue
-        #             if 0.01 <= np.mean(np.array([diff1, diff2, diff3, diff4])) <= 0.014:
-        #                 candidate_channel_pts += [(r,c)]
-        #                 #print("the detected avg was: ", np.mean(np.array([diff1, diff2, diff3, diff4])))
-        # print("Candidate Edge pts: ", candidate_channel_pts)
-        # # need to figure out which edge point is in fact the best one for our channel
-        # # i.e. highest up, and pick a point that is actually in the channel
-        # max_depth = 100000
-        # min_depth = 0
-        # channel_edge_pt = (0,0)
-        # channel_start = (0,0)
-        # sorted_candidate_channel_pts = sorted(candidate_channel_pts, key=lambda x: three_mat_depth[x[0]][x[1]])
-
-
-
-        # print("The sorted list is: ", sorted_candidate_channel_pts)
-        # #channel_edge_pt = sorted_candidate_channel_pts[0]
-        # possible_cable_edge_pt = sorted_candidate_channel_pts[-1]
-        # #print("the edge with lightest depth is: ", three_mat_depth[channel_edge_pt[0]][channel_edge_pt[1]])
-        # print("the edge with deepest depth is: ", three_mat_depth[possible_cable_edge_pt[0]][possible_cable_edge_pt[1]])
-
-        # for candidate_pt in candidate_channel_pts:
-        #     r = candidate_pt[0]
-        #     c = candidate_pt[1]
-        #     print("r", r, "c", c, "my depth is: ", three_mat_depth[r][c])
-        #     if 0 < three_mat_depth[r][c] < max_depth:
-        #         print("max depth:", max_depth)
-        #         channel_edge_pt = (r,c)
-        #         max_depth = three_mat_depth[r][c]
-        #     if three_mat_depth[r][c] > min_depth:
-        #         possible_cable_edge_pt = (r,c)
-        #         min_depth = three_mat_depth[r][c]
-        # print("The edge of the channel is: ", channel_edge_pt)
-        # r,c = channel_edge_pt
-        # possible_channel_pts = []
-
-
-        # ##### NEED TO REMOVE THE EDGES OF VALUE 0 FROM THE SAMPLE BASE!!!!!
-        # index = 0
-        # while index < len(sorted_candidate_channel_pts) and channel_start == (0,0):
-        #     channel_edge_pt = sorted_candidate_channel_pts[index]
-        #     r,c = channel_edge_pt
-        #     if three_mat_depth[r][c] == 0.0:
-        #         index += 1
-        #         continue
-        #     for add in range(1, 4):
-        #         if (r-add < 0 or c-add < 0) or (r+add >= len(three_mat_depth) or c+add >= len(three_mat_depth[r])):
+        # all_solns = []
+        # tightness = 0
+        # while (True):
+        #     all_solns = []
+        #     for r in range(len(compressed_map)):
+        #         for c in range(len(compressed_map[r])):
+        #             if (compressed_map[r][c] != 0):
+        #                 curr_edges = 0
+        #                 for add in range(1, 2):
+        #                     if (compressed_map[min(len(compressed_map)-add, r+add)][c] == 0):
+        #                         curr_edges += 1
+        #                     if (compressed_map[max(0, r-add)][c] == 0):
+        #                         curr_edges += 1
+        #                     if (compressed_map[r][min(len(compressed_map[0])-add, c+add)] == 0):
+        #                         curr_edges += 1
+        #                     if (compressed_map[r][max(0, c-add)] == 0):
+        #                         curr_edges += 1
+        #                     if (compressed_map[min(len(compressed_map)-add, r+add)][min(len(compressed_map[0])-add, c+add)] == 0):
+        #                         curr_edges += 1
+        #                     if (compressed_map[min(len(compressed_map)-add, r+add)][max(0, c-add)] == 0):
+        #                         curr_edges += 1
+        #                     if (compressed_map[max(0, r-add)][min(len(compressed_map[0])-add, c+add)] == 0):
+        #                         curr_edges += 1
+        #                     if (compressed_map[max(0, r-add)][max(0, c-add)] == 0):
+        #                         curr_edges += 1
+        #                 if (max_edges-tightness <= curr_edges <= max_edges+tightness):
+        #                     all_solns += [(c, r)]
+        #     print("ALL SOLUTIONS TIGHTNESS "+str(tightness) + ": "+str(all_solns))
+        #     if (len(all_solns) >= 2):
+        #         min_x = 100000
+        #         max_x = 0
+        #         for soln in all_solns:
+        #             if soln[0] < min_x:
+        #                 min_x = soln[0]
+        #             if soln[0] > max_x:
+        #                 max_x = soln[0]
+        #         if (max_x-min_x) > 2:
         #             break
-        #         # left - right
-        #         diff1 = abs(three_mat_depth[r-add][c] - three_mat_depth[r+add][c])
-        #         diff2 = abs(three_mat_depth[r][c-add] - three_mat_depth[r][c+add])
-        #         if 0.01 <= diff1 < 0.014: # prev upper was 0.016
-        #             if three_mat_depth[r-add][c] > three_mat_depth[r+add][c]:
-        #                 channel_start = (r-add, c)
-        #                 possible_channel_pts += [(r-add, c)]
-        #             else:
-        #                 channel_start = (r+add, c)
-        #                 possible_channel_pts += [(r+add, c)]
-        #         if 0.01 <= diff2 < 0.014: #prev upper was 0.016
-        #             if three_mat_depth[r][c-add] > three_mat_depth[r][c+add]:
-        #                 channel_start = (r, c-add)
-        #                 possible_channel_pts += [(r, c-add)]
-        #             else:
-        #                 channel_start = (r, c+add)
-        #                 possible_channel_pts += [(r, c+add)]
-        #     # the point in the channel was not found, so we need to look at the next best one
-        #     if channel_start == (0,0):
-        #         index += 1
-        # # channel_start = (channel_edge_pt[1], channel_edge_pt[0])
-        # print("possible channel pts: ", possible_channel_pts)
-        # print("The chosen channel_pt is: ", channel_start)
+        #     tightness += 1
 
-
-        # plt.imshow(edges, cmap='gray')
-        # plt.scatter(x = [j[1] for j in candidate_channel_pts], y=[i[0] for i in candidate_channel_pts],c='r')
-        # plt.scatter(x=channel_edge_pt[1], y=channel_edge_pt[0], c='b')
-        # plt.scatter(x=channel_start[1], y=channel_start[0], c='m')
-        # plt.scatter(x=possible_cable_edge_pt[1], y=possible_cable_edge_pt[0], c='w')
-        # plt.imshow(three_mat_depth, interpolation="nearest")
-        # plt.show()
-        # # for r in range(len(three_mat_color)):
-        # #     for c in range(len(three_mat_color[r])):
-        # #         if (lower < three_mat_color[r][c][0] < upper):
-        # #             curr_edges = 0
-        # #             for add in range(1, 11):
-        # #                 if (lower < three_mat_color[min(len(three_mat_color)-add, r+add)][c][0] < upper):
-        # #                     curr_edges += 1
-        # #                 if (lower < three_mat_color[max(0, r-add)][c][0] < upper):
-        # #                     curr_edges += 1
-        # #                 if (lower < three_mat_color[r][min(len(three_mat_color[0])-add, c+add)][0] < upper):
-        # #                     curr_edges += 1
-        # #                 if (lower < three_mat_color[r][max(0, c-add)][0] < upper):
-        # #                     curr_edges += 1
-        # #                 if (lower < three_mat_color[min(len(new_di_data)-add, r+add)][min(len(new_di_data[0])-add, c+add)][0] < upper):
-        # #                     curr_edges += 1
-        # #                 if (lower < three_mat_color[min(len(new_di_data)-add, r+add)][max(0, c-add)][0] < upper):
-        # #                     curr_edges += 1
-        # #                 if (lower < three_mat_color[max(0, r-add)][min(len(new_di_data[0])-add, c+add)][0] < upper):
-        # #                     curr_edges += 1
-        # #                 if (lower < three_mat_color[max(0, r-add)][max(0, c-add)][0] < upper):
-        # #                     curr_edges += 1
-        # #             if (curr_edges > max_edges):
-        # #                 max_edges = curr_edges
-        # #                 channel_start = (c, r)
-        # print("CHANNEL_START: "+str(channel_start))
-        # channel_start_d = (channel_start[1], channel_start[0])
-        # channel_cloud, _ = g.segment_channel(channel_start_d)
-        # transformed_channel_cloud = new_transf.apply(channel_cloud)
-        # image_channel = iface.cam.intrinsics.project_to_image(
-        #     transformed_channel_cloud, round_px=False)  # should this be transformed_channel_cloud?
-        # image_channel_data = image_channel._image_data()
-        # copy_channel_data = copy.deepcopy(image_channel_data)
-        # lower = 80
-        # upper = 255
+       
 
         channel_start_d = (channel_start[1], channel_start[0])
         # channel_cloud, _, channel_waypoints, possible_channel_end_pts = g.segment_channel(channel_start_d)
@@ -1407,6 +1232,7 @@ try:
         plt.scatter(x = [j[1] for j in possible_channel_end_pts], y=[i[0] for i in possible_channel_end_pts],c='0.45')
         plt.scatter(x=channel_start[1], y=channel_start[0], c='m')
         plt.scatter(x=cable_pt[1], y=cable_pt[0], c='w')
+        plt.title("cable and channel start points and waypoints")
         plt.imshow(three_mat_depth, interpolation="nearest")
         plt.show()
         
@@ -1439,6 +1265,7 @@ try:
         # Finish Thresholding, now find corner to place
         if DISPLAY:
             print("channel tracking!") # So we know if the channel tracking works appropriately
+            plt.title("copy_channel_data")
             plt.imshow(copy_channel_data, interpolation="nearest")
             plt.show()
         for r in range(len(copy_channel_data)):
@@ -1472,6 +1299,7 @@ try:
         print("ENDPOINTS SELECTED: " + str(endpoints))
         if DISPLAY:
             print("img skeleton")
+            plt.title("img_skeleton data")
             plt.scatter(x=[j[0][0] for j in features], y = [j[0][1] for j in features], c = '0.2')
             plt.scatter(x=[j[0] for j in endpoints], y = [j[1] for j in endpoints], c = 'm')
             plt.imshow(img_skeleton, interpolation="nearest")
@@ -1539,6 +1367,7 @@ try:
             scaled_test_loc_2[1] = scaled_test_loc_2[1] - \
                 int(compress_factor/2)
         if DISPLAY:
+            plt.title("compressed_map")
             plt.imshow(compressed_map, interpolation="nearest")
             plt.show()
         min_dist = 10000
@@ -1564,6 +1393,7 @@ try:
         min_loc_2 = candidate_rope_loc_2
         print("FITTED POINT OF OTHER END: " + str(min_loc_2))
         if DISPLAY:
+            plt.title("new_di_data")
             plt.scatter(x=[min_loc[0], min_loc_2[0]], y = [min_loc[1], min_loc_2[1]], c='w')
             plt.scatter(x=[j[0]*compress_factor - int(compress_factor/2) for j in all_solns], y = [j[1]*compress_factor - int(compress_factor/2) for j in all_solns], c='b')
             plt.imshow(new_di_data, interpolation="nearest")
@@ -1631,7 +1461,7 @@ try:
         print("this is the calculated nrom between them", dist2waypoint1)
         
 
-        
+        plt.title("pick and place locations")
         plt.scatter(x = [j[1] for j in channel_waypoints], y=[i[0] for i in channel_waypoints],c='c')
         plt.scatter(x = [j[1] for j in cable_waypoints], y=[i[0] for i in cable_waypoints],c='0.75')
         plt.scatter(x=[pick[0], place[0]], y = [pick[1], place[1]], c='b')
@@ -1777,6 +1607,7 @@ except Exception:
 
     # ----------------------Find brightest pixel for segment_cable
     if DISPLAY:
+        plt.title("color image data")
         plt.imshow(img.color.data, interpolation="nearest")
         plt.show()
     three_mat_color = img.color.data

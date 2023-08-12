@@ -297,9 +297,10 @@ class GraspSelector:
         CLOSE2 = .002**2
         DELTA = .00080#.00075
         NEIGHS = [(-1, 0), (1, 0), (0, 1), (0, -1)]
-        COLOR_THRESHOLD = 45
+        COLOR_THRESHOLD = 100
         counter = 0
         waypoints = []
+        # points whose color difference is within a specific range that causes segmentation to fail or succeed sometimes
         weird_pts = []
         # carry out floodfill
         while len(q) > 0:
@@ -309,6 +310,7 @@ class GraspSelector:
                     break
             next_loc = q.pop()
             next_point = self.ij_to_point(next_loc).data
+            # pdb.set_trace()
             next_color = np.asarray(self.color[next_loc[1]][next_loc[0]])
             next_color = next_color.astype(np.int16)
             visited.add(next_loc)
@@ -343,7 +345,12 @@ class GraspSelector:
                     weird_pts.append([test_loc[1], test_loc[0]])
                 if (abs(test_pt[2]-next_point[2]) < DELTA and color_diff < COLOR_THRESHOLD):
                     q.append(test_loc)
-
+                else:
+                    print("color diff: ", color_diff)
+                    print("depth diff: ", abs(test_pt[2]-next_point[2]))
+        print("done with cable segmentation")
+        print("here are the points:")
+        print(np.array(pts))
         return PointCloud(np.array(pts).T, "base_link"), PointCloud(np.array(closepts).T, "base_link").mean(), waypoints, weird_pts
 
     def segment_channel(self, loc, use_pixel = False):
@@ -360,6 +367,7 @@ class GraspSelector:
         RADIUS2 = 1  # distance from original point before termination
         CLOSE2 = .002**2
         DELTA = 0.0002*3
+        COLOR_THRESHOLD = 255
         NEIGHS = [(-1, 0), (1, 0), (0, 1), (0, -1)]
         counter = 0
         waypoints = []
@@ -368,6 +376,8 @@ class GraspSelector:
         while len(q) > 0:
             next_loc = q.pop()
             next_point = self.ij_to_point(next_loc).data
+            next_color = np.asarray(self.color[next_loc[1]][next_loc[0]])
+            next_color = next_color.astype(np.int16)
             # Next Point Example: [0.33499247 0.00217638 0.05645943]
             visited.add(next_loc)
             diff = start_point-next_point
@@ -391,7 +401,13 @@ class GraspSelector:
                         or test_loc[1] >= self.depth.height or test_loc[1] < 0:
                     continue
                 test_pt = self.ij_to_point(test_loc).data
+                test_color = np.asarray(self.color[test_loc[1]][test_loc[0]])
+                test_color = test_color.astype(np.int16)
+                color_diff = np.linalg.norm(next_color-test_color)
                 if (abs(test_pt[2]-next_point[2]) < DELTA):
+                    q.append(test_loc)
+                elif (test_pt[2] == 0 and color_diff < COLOR_THRESHOLD): 
+                    print("color diff: ", color_diff)
                     q.append(test_loc)
         if (use_pixel == False):
             return PointCloud(np.array(pts).T, "base_link"), PointCloud(np.array(closepts).T, "base_link").mean(), waypoints, endpoints
@@ -443,8 +459,10 @@ if __name__ == '__main__':
     from tcps import *
     img = RgbdImage.from_color_and_depth(ColorImage.open(
         "data2/color_1791.npy", frame='phoxi'), DepthImage.open("data2/depth_1791.npy", frame='phoxi'))
+    # T_CAM_BASE = RigidTransform.load(
+    #     "/home/jkerr/yumi/phoxipy/tools/phoxi_to_world_etch.tf").as_frames(from_frame="phoxi", to_frame="base_link")
     T_CAM_BASE = RigidTransform.load(
-        "/home/jkerr/yumi/phoxipy/tools/phoxi_to_world_etch.tf").as_frames(from_frame="phoxi", to_frame="base_link")
+        "/home/jkerr/yumi/phoxipy/tools/phoxi_to_world_bww.tf").as_frames(from_frame="phoxi", to_frame="base_link")
     #T_CAM_BASE = RigidTransform.load("/nfs/diskstation/calib/phoxi/phoxi_to_world.tf").as_frames(from_frame="phoxi",to_frame="base_link")
     intr = PhoXiSensor.create_intr(img.width, img.height)
     LTCP = ABB_WHITE.as_frames(YK.l_tcp_frame, YK.l_tip_frame)

@@ -49,7 +49,8 @@ class Interface:
         self.yk.set_tcp(self.L_TCP,self.R_TCP)
         self.set_speed(speed)
         #set up the phoxi
-        self.T_PHOXI_BASE = RigidTransform.load("../phoxipy/tools/phoxi_to_world_etch.tf").as_frames(from_frame="phoxi",to_frame="base_link")
+        # self.T_PHOXI_BASE = RigidTransform.load("../phoxipy/tools/phoxi_to_world_etch.tf").as_frames(from_frame="phoxi",to_frame="base_link")
+        self.T_PHOXI_BASE = RigidTransform.load("../phoxipy/tools/phoxi_to_world_bww.tf").as_frames(from_frame="phoxi",to_frame="base_link")
         self.cam = PhoXiSensor("1703005")
         self.cam.start()
         img=self.cam.read()

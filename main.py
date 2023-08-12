@@ -21,7 +21,7 @@ behavior_cloning_path = os.path.dirname(os.path.abspath(
     __file__)) + "/../../multi-fidelity-behavior-cloning"
 sys.path.insert(0, behavior_cloning_path)
 
-DISPLAY = False
+DISPLAY = 
 TWO_ENDS = False
 PUSH_DETECT = True
 

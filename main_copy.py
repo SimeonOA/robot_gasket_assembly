@@ -591,10 +591,15 @@ try:
         
         # need to eliminate bottom segment of the workspace cause the dropoff creates weird problems
         # starting from the top of the image, the amount of pixels we want in the vertical direction
-        vert_pixels = 630  
-        one_mask = np.ones((vert_pixels, 1032))
-        zero_mask = np.zeros((772 - vert_pixels, 1032))
-        full_mask = np.vstack((one_mask, zero_mask))
+        vert_pixels = 600
+        horiz_pixels = 200  
+        one_mask_vert = np.ones((vert_pixels, 1032))
+        zero_mask_vert = np.zeros((772 - vert_pixels, 1032))
+        full_mask_vert = np.vstack((one_mask_vert, zero_mask_vert))
+        one_mask_horiz = np.ones((772, 1032 - horiz_pixels))
+        zero_mask_horiz = np.zeros((772, horiz_pixels))
+        full_mask_horiz = np.hstack((zero_mask_horiz, one_mask_horiz))
+        full_mask = np.logical_and(full_mask_vert, full_mask_horiz)
         shortened_depth = full_mask * three_mat_depth
         plt.title('shortened depth')
         plt.imshow(shortened_depth)
@@ -635,7 +640,7 @@ try:
         plt.show()
 
         # VERY IMPORTANT CHANGE PLEASE DO NOT FORGET ABOUT THIS PLEASE!!!!!
-        # three_mat_depth = dilated_depth_img
+        three_mat_depth = dilated_depth_img
         
 
         if np.array_equal(three_mat_depth, dilated_depth_img):
@@ -807,11 +812,11 @@ try:
 
         print('is_dilated', is_dilated)
         if is_dilated:
-            lower_thresh = 0.01
-            upper_thresh = 0.014
+            lower_thresh = 0.009
+            upper_thresh = 0.011
         else:
-            lower_thresh = 0.01
-            upper_thresh = 0.014
+            lower_thresh = 0.009
+            upper_thresh = 0.01
 
         for r in range(len(edges)):
             for c in range(len(edges[r])):
@@ -820,25 +825,34 @@ try:
                     diff2 = 0
                     diff3 = 0
                     diff4 = 0
-                    for add in range(1, 4):
+                    count_diff = 0
+                    total_diff = 0
+                    for add in range(1, 3):
+                        # checks if out of bounds
                         if (r-add < 0 or c-add < 0) or (r+add >= len(three_mat_depth) or c+add >= len(three_mat_depth[r])):
                             break
                         # top - bottom
                         diff1 = abs(three_mat_depth[r-add][c] - three_mat_depth[r+add][c]) 
+                        if diff1 < 0.03:
+                            total_diff += diff1
+                            count_diff += 1
                         # left - right
                         diff2 = abs(three_mat_depth[r][c-add] - three_mat_depth[r][c+add])
+                        if diff2 < 0.03:
+                            total_diff += diff2
+                            count_diff += 1
                         # top left - bottom right
                         diff3 = abs(three_mat_depth[r-add][c-add] - three_mat_depth[r+add][r+add])
+                        if diff3 < 0.03:
+                            total_diff += diff3
+                            count_diff += 1
                         # top right - bottom left
                         diff4 = abs(three_mat_depth[r-add][c+add] - three_mat_depth[r+add][r-add])
-
-                        if diff1 > 0.03 or diff2 > 0.03 or diff3 > 0.03 or diff4 > 0.03:
-                            continue
-                        if lower_thresh <= np.mean(np.array([diff1, diff2, diff3, diff4])) <= upper_thresh:
-                            candidate_channel_pts += [(r,c)]   
-                    if diff1 > 0.02 or diff2 > 0.02 or diff3 > 0.02 or diff4 > 0.02:
-                        continue
-                    if 0.01 <= np.mean(np.array([diff1, diff2, diff3, diff4])) <= 0.014:
+                        if diff4 < 0.03:
+                            total_diff += diff4
+                            count_diff += 1
+                    
+                    if count_diff != 0 and lower_thresh <= (total_diff/count_diff) <= upper_thresh:
                         candidate_channel_pts += [(r,c)]
                         #print("the detected avg was: ", np.mean(np.array([diff1, diff2, diff3, diff4])))
         print("Candidate Edge pts: ", candidate_channel_pts)

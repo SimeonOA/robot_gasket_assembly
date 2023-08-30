@@ -1232,10 +1232,10 @@ try:
         # channel_cloud, _, channel_waypoints, possible_channel_end_pts = g.segment_channel(channel_start_d)
         channel_cloud_pixels, channel_cloud, _, channel_waypoints, possible_channel_end_pts = \
             g.segment_channel(channel_start_d, use_pixel=True)
-        waypoint_first= g.ij_to_point(channel_waypoints[0]).data
+        # waypoint_first= g.ij_to_point(channel_waypoints[0]).data
         print('channel cloud shape', channel_cloud.shape)
         print('channel waypoints one case:', channel_waypoints[0])
-        print('channel waypoints one case adjusted', waypoint_first)
+        # print('channel waypoints one case adjusted', waypoint_first)
         print('channel cloud one case', channel_cloud[-1])
         print('channel cloud one case', channel_cloud.data[-1])
         print('channel cloud', channel_cloud)

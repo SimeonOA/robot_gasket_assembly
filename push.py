@@ -28,7 +28,7 @@ def act_to_kps(act):
     return (x, y), (x+dx, y+dy)
 
 
-def push_action(pick):
+def push_action(pick, iface):
     print("pushing down")
     iface.set_speed((.25, 5))
     iface.close_grippers()

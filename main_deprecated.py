@@ -65,12 +65,13 @@ try:
         img = iface.take_image()
 
         g = GraspSelector(img, iface.cam.intrinsics, iface.T_PHOXI_BASE)
+        # NEW --------------------------------------------------------------------------------
 
+        # ----------------------Find brightest pixel for segment_cable
         if DISPLAY:
             plt.title("color image")
             plt.imshow(img.color.data, interpolation="nearest")
             plt.show()
-
         three_mat_color = img.color.data
         three_mat_depth = img.depth.data
         
@@ -78,14 +79,23 @@ try:
         # starting from the top of the image, the amount of pixels we want in the vertical direction
         vert_pixels = 600
         horiz_pixels = 200  
-        three_mat_depth = crop_img(vert_pixels, horiz_pixels, three_mat_depth)
+        one_mask_vert = np.ones((vert_pixels, 1032))
+        zero_mask_vert = np.zeros((772 - vert_pixels, 1032))
+        full_mask_vert = np.vstack((one_mask_vert, zero_mask_vert))
+        one_mask_horiz = np.ones((772, 1032 - horiz_pixels))
+        zero_mask_horiz = np.zeros((772, horiz_pixels))
+        full_mask_horiz = np.hstack((zero_mask_horiz, one_mask_horiz))
+        full_mask = np.logical_and(full_mask_vert, full_mask_horiz)
+        shortened_depth = full_mask * three_mat_depth
+        plt.title('shortened depth')
+        plt.imshow(shortened_depth)
+        plt.show()
+        three_mat_depth = shortened_depth
 
         if original_depth_image_scan is None:
             original_depth_image_scan = three_mat_depth
         last_depth_image_scan = three_mat_depth
 
-        # levels out all of the pixels so that the workspace is treated as flat
-        # basically tries to remove the slant that the workspace has
         if CALIBRATE:
             highest_depth = np.max(three_mat_depth)
             mask = (np.ones(three_mat_depth.shape)*highest_depth) - three_mat_depth
@@ -96,7 +106,7 @@ try:
         else:
             with open('flat_table_depth_mask.npy', "rb") as f:
                 mask = np.load(f)
-
+        # levels out all of the pixels so that the workspace is treated as flat
         print(mask)
         three_mat_depth_flat = mask + three_mat_depth
         plt.title("image depth flat")
@@ -115,8 +125,8 @@ try:
         plt.imshow(dilated_depth_img, interpolation='nearest')
         plt.show()
 
-        # dilates the image to try to resolve 0 depth values
-        # three_mat_depth = dilated_depth_img
+        # VERY IMPORTANT CHANGE PLEASE DO NOT FORGET ABOUT THIS PLEASE!!!!!
+        three_mat_depth = dilated_depth_img
         
 
         if np.array_equal(three_mat_depth, dilated_depth_img):
@@ -143,6 +153,8 @@ try:
         ### BEGIN FINDING THE CHANNEL AND CABLE POINTS!!!
 
         # ----------------------FIND END OF CHANNEL
+        lower = 254
+        upper = 256
         channel_start = (0, 0)
         max_edges = 0
         candidate_channel_pts = []
@@ -157,7 +169,7 @@ try:
         plt.show()
 
         
-        # testing out using contours instead to try and figure out cable and channels
+         # testing out using contours instead to try and figure out cable and channels
         # edges_copy = edges.copy()
         # test = cv2.cvtColor(three_mat_color, cv2.COLOR_BGR2GRAY)
         # cv2.imshow('test', test)
@@ -181,8 +193,6 @@ try:
 
         #depth_image = cv2.imread(three_mat_depth, cv2.IMREAD_UNCHANGED)
         
-
-
         # performing image in painting, to remove all of the 0 values in the depth image with an average
         # three_mat_depth = inpaint_depth(three_mat_depth)
         
@@ -195,11 +205,9 @@ try:
             lower_thresh = 0.009
             upper_thresh = 0.01
 
-        # searches the depth values surrounding a given pixel to see if
-        # the average change is depth is around 0.5in
         for r in range(len(edges)):
             for c in range(len(edges[r])):
-                if (edges[r][c] == 255):
+                if (lower < edges[r][c]< upper):
                     diff1 = 0
                     diff2 = 0
                     diff3 = 0
@@ -300,9 +308,35 @@ try:
                 index += 1
         # channel_start = (channel_edge_pt[1], channel_edge_pt[0])
         print("possible channel pts: ", possible_channel_pts)
+        print("The chosen channel_pt is: ", channel_start)
+
+        # for r in range(len(three_mat_color)):
+        #     for c in range(len(three_mat_color[r])):
+        #         if (lower < three_mat_color[r][c][0] < upper):
+        #             curr_edges = 0
+        #             for add in range(1, 11):
+        #                 if (lower < three_mat_color[min(len(three_mat_color)-add, r+add)][c][0] < upper):
+        #                     curr_edges += 1
+        #                 if (lower < three_mat_color[max(0, r-add)][c][0] < upper):
+        #                     curr_edges += 1
+        #                 if (lower < three_mat_color[r][min(len(three_mat_color[0])-add, c+add)][0] < upper):
+        #                     curr_edges += 1
+        #                 if (lower < three_mat_color[r][max(0, c-add)][0] < upper):
+        #                     curr_edges += 1
+        #                 if (lower < three_mat_color[min(len(new_di_data)-add, r+add)][min(len(new_di_data[0])-add, c+add)][0] < upper):
+        #                     curr_edges += 1
+        #                 if (lower < three_mat_color[min(len(new_di_data)-add, r+add)][max(0, c-add)][0] < upper):
+        #                     curr_edges += 1
+        #                 if (lower < three_mat_color[max(0, r-add)][min(len(new_di_data[0])-add, c+add)][0] < upper):
+        #                     curr_edges += 1
+        #                 if (lower < three_mat_color[max(0, r-add)][max(0, c-add)][0] < upper):
+        #                     curr_edges += 1
+        #             if (curr_edges > max_edges):
+        #                 max_edges = curr_edges
+        #                 channel_start = (c, r)
         print("CHANNEL_START: "+str(channel_start))
         
-        # FINDING A POINT ON THE CABLE
+        # FINDING THE POINT ON THE CABLE!!!
         r = possible_cable_edge_pt[0]
         c = possible_cable_edge_pt[1]
         index = 0
@@ -356,6 +390,9 @@ try:
         rope_cloud, _, cable_waypoints, weird_pts = g.segment_cable(loc)
         # ----------------------Remove block
 
+        # plt.imshow(img.color.data, interpolation="nearest")
+        # plt.show()
+
         fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(8, 4),
                             sharex=True, sharey=True)
 
@@ -387,21 +424,166 @@ try:
         cable_skeleton = skeletonize_img(di._image_data())
         
         cable_len, cable_endpoints_1 = find_length_and_endpoints(cable_skeleton)
+        
+        ### MODIFIED BY KARIM AFTER COMMENTING OUT CORY"S CODE
+        delete_later = []
+        ### MODIFIED BY KARIM AFTER COMMENTING OUT CORY"S CODE
 
+        di_data = di._image_data()
+        for delete in delete_later:
+            di_data[delete[1]][delete[0]] = [float(0), float(0), float(0)]
+
+        mask = np.zeros((len(di_data), len(di_data[0])))
+        loc_list = [loc]
+
+        # modified segment_cable code to build a mask for the cable
+
+        # pick the brightest rgb point in the depth image
+        # increment in each direction for it's neighbors looking to see if it meets the thresholded rgb value
+        # if not, continue
+        # if yes set it's x,y position to the mask matrix with the value 1
+        # add that value to the visited list so that we don't go back to it again
+
+        new_di_data = np.zeros((len(di_data), len(di_data[0])))
+        xdata = []
+        ydata = []
+
+        for r in range(len(new_di_data)):
+            for c in range(len(new_di_data[r])):
+                new_di_data[r][c] = di_data[r][c][0]
+                if (new_di_data[r][c] > 0):
+                    xdata += [c]
+                    ydata += [r]
+
+        for r in range(len(new_di_data)):
+            for c in range(len(new_di_data[r])):
+                if (new_di_data[r][c] != 0):
+                    curr_edges = 0
+                    for add in range(1, 8):
+                        if (new_di_data[min(len(new_di_data)-add, r+add)][c] != 0):
+                            curr_edges += 1
+                        if (new_di_data[max(0, r-add)][c] != 0):
+                            curr_edges += 1
+                        if (new_di_data[r][min(len(new_di_data[0])-add, c+add)] != 0):
+                            curr_edges += 1
+                        if (new_di_data[r][max(0, c-add)] != 0):
+                            curr_edges += 1
+                        if (new_di_data[min(len(new_di_data)-add, r+add)][min(len(new_di_data[0])-add, c+add)] != 0):
+                            curr_edges += 1
+                        if (new_di_data[min(len(new_di_data)-add, r+add)][max(0, c-add)] != 0):
+                            curr_edges += 1
+                        if (new_di_data[max(0, r-add)][min(len(new_di_data[0])-add, c+add)] != 0):
+                            curr_edges += 1
+                        if (new_di_data[max(0, r-add)][max(0, c-add)] != 0):
+                            curr_edges += 1
+                    if (curr_edges < 11):
+                        new_di_data[r][c] = 0.0
+
+        new_di = DepthImage(new_di_data.astype(np.float32), frame=di.frame)
+        if DISPLAY:
+            plt.title("new_di image data")
+            plt.imshow(new_di._image_data(), interpolation="nearest")
+            plt.show()
+
+        new_di_data = gaussian_filter(new_di_data, sigma=1)
+
+        for r in range(len(new_di_data)):
+            for c in range(len(new_di_data[r])):
+                if (new_di_data[r][c] != 0):
+                    new_di_data[r][c] = 255
+        new_di_data = gaussian_filter(new_di_data, sigma=1)
+
+        for r in range(len(new_di_data)):
+            for c in range(len(new_di_data[r])):
+                if (new_di_data[r][c] != 0):
+                    new_di_data[r][c] = 255
+        new_di_data = gaussian_filter(new_di_data, sigma=1)
+
+        save_loc = (0, 0)
+        for r in range(len(new_di_data)):
+            for c in range(len(new_di_data[r])):
+                if (new_di_data[r][c] != 0):
+                    new_di_data[r][c] = 255
+                    save_loc = (c, r)
+        new_di_data = gaussian_filter(new_di_data, sigma=1)
+
+        compress_factor = 30
+        rows_comp = int(math.floor(len(di_data)/compress_factor))
+        cols_comp = int(math.floor(len(di_data[0])/compress_factor))
+        compressed_map = np.zeros((rows_comp, cols_comp))
+
+        for r in range(rows_comp):
+            if r != 0:
+                r = float(r) - 0.5
+            for c in range(cols_comp):
+                if c != 0:
+                    c = float(c) - 0.5
+                for add in range(1, 5):
+                    if (new_di_data[int(min(len(new_di_data)-add, r*compress_factor+add))][int(c*compress_factor)] != 0):
+                        compressed_map[int(r)][int(c)] = 255
+                        break
+                    if (new_di_data[int(max(0, r*compress_factor-add))][int(c*compress_factor)] != 0):
+                        compressed_map[int(r)][int(c)] = 255
+                        break
+                    if (new_di_data[int(r*compress_factor)][int(min(len(new_di_data[0])-add, c*compress_factor+add))] != 0):
+                        compressed_map[int(r)][int(c)] = 255
+                        break
+                    if (new_di_data[int(r*compress_factor)][int(max(0, c*compress_factor-add))] != 0):
+                        compressed_map[int(r)][int(c)] = 255
+                        break
+                    if (new_di_data[int(min(len(new_di_data)-add, r*compress_factor+add))][int(min(len(new_di_data[0])-add, c*compress_factor+add))] != 0):
+                        compressed_map[int(r)][int(c)] = 255
+                        break
+                    if (new_di_data[int(min(len(new_di_data)-add, r*compress_factor+add))][int(max(0, c*compress_factor-add))] != 0):
+                        compressed_map[int(r)][int(c)] = 255
+                        break
+                    if (new_di_data[int(max(0, r*compress_factor-add))][int(min(len(new_di_data[0])-add, c*compress_factor+add))] != 0):
+                        compressed_map[int(r)][int(c)] = 255
+                        break
+                    if (new_di_data[int(max(0, r*compress_factor-add))][int(max(0, c*compress_factor-add))] != 0):
+                        compressed_map[int(r)][int(c)] = 255
+                        break
+        max_edges = 0
+        test_locs = (0, 0)
+        for r in range(len(compressed_map)):
+            for c in range(len(compressed_map[r])):
+                if (compressed_map[r][c] != 0):
+                    curr_edges = 0
+                    for add in range(1, 2):
+                        if (compressed_map[min(len(compressed_map)-add, r+add)][c] == 0):
+                            curr_edges += 1
+                        if (compressed_map[max(0, r-add)][c] == 0):
+                            curr_edges += 1
+                        if (compressed_map[r][min(len(compressed_map[0])-add, c+add)] == 0):
+                            curr_edges += 1
+                        if (compressed_map[r][max(0, c-add)] == 0):
+                            curr_edges += 1
+                        if (compressed_map[min(len(compressed_map)-add, r+add)][min(len(compressed_map[0])-add, c+add)] == 0):
+                            curr_edges += 1
+                        if (compressed_map[min(len(compressed_map)-add, r+add)][max(0, c-add)] == 0):
+                            curr_edges += 1
+                        if (compressed_map[max(0, r-add)][min(len(compressed_map[0])-add, c+add)] == 0):
+                            curr_edges += 1
+                        if (compressed_map[max(0, r-add)][max(0, c-add)] == 0):
+                            curr_edges += 1
+                    if (curr_edges > max_edges):
+                        test_loc = (c, r)
+                        max_edges = curr_edges
+        if 'test_loc' in globals():
+            print(test_loc)
+            print("scaled: " +
+                str((test_loc[0]*compress_factor, test_loc[1]*compress_factor)))
+        
         
         # code for a compressed map to find endpoints
-        # not at all well-converted for current code do not attempt without looking at 106a_main.py and editing utils
         # pick, pick_2 = find_endpoints_compressed_map(compressed_map, max_edges, place, place_2, new_di_data, DISPLAY=False)
 
        
 
-        # channel_cloud, _, channel_waypoints, possible_channel_end_pts = g.segment_channel(channel_start_d)
-        # ----------------------Segment
         channel_start_d = (channel_start[1], channel_start[0])
+        # channel_cloud, _, channel_waypoints, possible_channel_end_pts = g.segment_channel(channel_start_d)
         channel_cloud_pixels, channel_cloud, _, channel_waypoints, possible_channel_end_pts = \
             g.segment_channel(channel_start_d, use_pixel=True)
-        # ----------------------
-
         # waypoint_first= g.ij_to_point(channel_waypoints[0]).data
         print('channel cloud shape', channel_cloud.shape)
         print('channel waypoints one case:', channel_waypoints[0])

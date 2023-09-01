@@ -226,7 +226,21 @@ def find_length_and_endpoints(skeleton_img):
     # carry out floodfill
     q = [start_pt]
     # carry out floodfill
-    def dfs(q, dist_q, visited, increment_amt):
+    IS_LOOP = False
+    ENTIRE_VISITED = [False] * int(np.nonzero(skeleton_img).sum())
+    def dfs(q, dist_q, visited, start_pixel, increment_amt):
+        '''
+        q: queue with next point on skeleton for one direction
+        dist_q: queue with distance from start point to next point for one direction
+        visited: queue with visited points for only one direction
+        increment_amt: counter that indicates direction +/- 1
+        '''
+
+        is_loop = ENTIRE_VISITED[start_pixel + increment_amt*len(visited)]
+        if is_loop:
+            return is_loop
+
+
         while len(q) > 0:
             next_loc = q.pop()
             distance = dist_q.pop()
@@ -250,6 +264,7 @@ def find_length_and_endpoints(skeleton_img):
             # if next_loc == start_pt and counter == 1:
             #     endpoints.append([next_loc, distance])
             #     initial_endpoint = True
+        return is_loop
     counter = 0
     length_checker = 0
     increment_amt = 1
@@ -261,7 +276,9 @@ def find_length_and_endpoints(skeleton_img):
             counter += 1
             q = [test_loc]
             dist_q = [0]
-            dfs(q, dist_q, visited, increment_amt)
+            IS_LOOP = dfs(q, dist_q, visited, increment_amt)
+            if IS_LOOP:
+                break
             # the first time our distance will be incrementing but the second time
             # , i.e. when dfs'ing the opposite direction our distance will be negative to differentiate both paths
             increment_amt = -1
@@ -286,15 +303,19 @@ def find_length_and_endpoints(skeleton_img):
     #     final_endpoints = [endpoints[second_largest][0], endpoints[largest][0]]
     
     largest_pos = largest_neg = None
-    for pt, distance in endpoints:
-        if largest_pos is None or distance > endpoints[largest_pos][1]:
-            largest_pos = endpoints.index([pt, distance])
-        elif largest_neg is None or distance < endpoints[largest_neg][1]:
-            largest_neg = endpoints.index([pt, distance])
-    if initial_endpoint:
-        final_endpoints = [endpoints[0][0], endpoints[largest_pos][0]]
+
+    if IS_LOOP:
+        final_endpoints = [endpoints[0][0]] # MAYBE RAND INDEX LATER
     else:
-        final_endpoints = [endpoints[largest_neg][0], endpoints[largest_pos][0]]
+        for pt, distance in endpoints:
+            if largest_pos is None or distance > endpoints[largest_pos][1]:
+                largest_pos = endpoints.index([pt, distance])
+            elif largest_neg is None or distance < endpoints[largest_neg][1]:
+                largest_neg = endpoints.index([pt, distance])
+        if initial_endpoint:
+            final_endpoints = [endpoints[0][0], endpoints[largest_pos][0]]
+        else:
+            final_endpoints = [endpoints[largest_neg][0], endpoints[largest_pos][0]]
     
     plt.scatter(x = [j[0][1] for j in endpoints], y=[i[0][0] for i in endpoints],c='w')
     plt.scatter(x = [final_endpoints[1][1]], y=[final_endpoints[1][0]],c='r')
@@ -326,7 +347,7 @@ def check_index(p_array, part, ind = False):
             return check[0][0]
         return(np.all(np.isclose(check[0], check[0][0])))
     
-def find_endpoints_compressed_map(compressed_map, max_edges):
+def find_all_solns(compressed_map, max_edges):
     all_solns = []
     tightness = 0
     while (True):
@@ -366,3 +387,126 @@ def find_endpoints_compressed_map(compressed_map, max_edges):
             if (max_x-min_x) > 2:
                 break
         tightness += 1
+    return all_solns
+
+def find_endpoints_compressed_map(compressed_map, max_edges, compress_factor, place, place_2, new_di_data, DISPLAY=False):
+    all_solns = find_all_solns(compressed_map, max_edges)
+    min_dist = 100000000
+    max_dist = 0
+    min_all_solns = (0, 0)
+    max_all_solns = (0, 0)
+    for soln in all_solns:
+        soln = soln *compress_factor
+        print("soln[1]", soln[1])
+        #soln[1] = soln[1] - int(compress_factor/2)
+        #soln[0] = soln[0] - int(compress_factor/2)
+        dist1 = np.linalg.norm(
+            np.array([place[1]-soln[1], place[0]-soln[0]]))
+        dist2 = np.linalg.norm(
+            np.array([place_2[1]-soln[1], place_2[0]-soln[0]]))
+        if dist1 > max_dist or dist2 > max_dist:
+            max_dist = max(dist1, dist2)
+            max_all_solns = soln
+        if dist1 < min_dist or dist2 < min_dist:
+            min_dist = min(dist1, dist2)
+            min_all_solns = soln
+
+    scaled_test_loc = [max_all_solns[0]*compress_factor,
+                    max_all_solns[1]*compress_factor]
+    scaled_test_loc_2 = []
+    scaled_test_loc_2 = [min_all_solns[0]*compress_factor,
+                        min_all_solns[1]*compress_factor]
+    if (scaled_test_loc[0] != 0):
+        scaled_test_loc[0] = scaled_test_loc[0] - int(compress_factor/2)
+        print("scaled_test_loc[0]", scaled_test_loc[0])
+    if (scaled_test_loc[1] != 0):
+        scaled_test_loc[1] = scaled_test_loc[1] - int(compress_factor/2)
+    if (scaled_test_loc_2[0] != 0):
+        scaled_test_loc_2[0] = scaled_test_loc_2[0] - \
+            int(compress_factor/2)
+    if (scaled_test_loc_2[1] != 0):
+        scaled_test_loc_2[1] = scaled_test_loc_2[1] - \
+            int(compress_factor/2)
+    if DISPLAY:
+        plt.title("compressed_map")
+        plt.imshow(compressed_map, interpolation="nearest")
+        plt.show()
+    min_dist = 10000
+    min_dist_2 = 1000
+    candidate_rope_loc = (0, 0)
+    candidate_rope_loc_2 = (0, 0)
+    for r in range(len(new_di_data)):
+        for c in range(len(new_di_data[r])):
+            if (di_data[r][c][0] != 0):
+                dist = np.linalg.norm(
+                    np.array([r-scaled_test_loc[1], c-scaled_test_loc[0]]))
+                if (dist < min_dist):
+                    candidate_rope_loc = (c, r)
+                    min_dist = dist
+                dist_2 = np.linalg.norm(
+                    np.array([r-scaled_test_loc_2[1], c-scaled_test_loc_2[0]]))
+                if (dist_2 < min_dist_2):
+                    candidate_rope_loc_2 = (c, r)
+                    min_dist_2 = dist_2
+    min_loc = candidate_rope_loc
+    min_loc_2 = (0, 0)
+    print("FITTED POINT: " + str(min_loc))
+    min_loc_2 = candidate_rope_loc_2
+    print("FITTED POINT OF OTHER END: " + str(min_loc_2))
+    if DISPLAY:
+        plt.title("new_di_data")
+        plt.scatter(x=[min_loc[0], min_loc_2[0]], y = [min_loc[1], min_loc_2[1]], c='w')
+        plt.scatter(x=[j[0]*compress_factor - int(compress_factor/2) for j in all_solns], y = [j[1]*compress_factor - int(compress_factor/2) for j in all_solns], c='b')
+        plt.imshow(new_di_data, interpolation="nearest")
+        plt.show()
+
+    pick = min_loc
+    print("This is Pick", pick)
+    pick_2 = (0, 0)
+    pick_2 = min_loc_2
+
+    return pick, pick_2
+
+
+def coord_to_point(coord, iface, img):
+    points_3d = iface.cam.intrinsics.deproject(img.depth)
+    xind, yind = coord
+    lin_ind = int(img.depth.ij_to_linear(np.array(xind), np.array(yind)))
+    point = iface.T_PHOXI_BASE*points_3d[lin_ind]
+    new_point_data = np.array(
+        [point.y, point.x, point.z])
+    new_point = Point(
+        new_point_data, frame=point.frame)
+    return new_point
+
+def inpaint_depth(three_mat_depth):
+    three_mat_depth = three_mat_depth.copy()
+    zero_pixels = np.where(three_mat_depth == 0)
+
+    for i in range(len(zero_pixels[0])):
+        x = zero_pixels[0][i]
+        y = zero_pixels[1][i]
+
+        patch_size = 5
+        patch = three_mat_depth[x-patch_size:x+patch_size+1, y-patch_size:y+patch_size+1]
+        patch_nonzero = patch[np.nonzero(patch)]
+        avg_value = np.mean(patch)
+        if 0 < x < len(three_mat_depth[0]) and 0 < y < len(three_mat_depth):
+            three_mat_depth[x,y] = three_mat_depth[x-1,y]
+
+    mask = (three_mat_depth ==0).astype(np.uint8)
+    return cv2.inpaint(three_mat_depth, mask, 7, cv2.INPAINT_NS)
+
+def crop_img(vert_end, horiz_end, img):
+    one_mask_vert = np.ones((vert_end, 1032))
+    zero_mask_vert = np.zeros((772 - vert_end, 1032))
+    full_mask_vert = np.vstack((one_mask_vert, zero_mask_vert))
+    one_mask_horiz = np.ones((772, 1032 - horiz_end))
+    zero_mask_horiz = np.zeros((772, horiz_end))
+    full_mask_horiz = np.hstack((zero_mask_horiz, one_mask_horiz))
+    full_mask = np.logical_and(full_mask_vert, full_mask_horiz)
+    cropped_img = full_mask * img
+    plt.title('cropped img')
+    plt.imshow(cropped_img)
+    plt.show()
+    return cropped_img

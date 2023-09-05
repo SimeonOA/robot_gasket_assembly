@@ -9,8 +9,8 @@ from scipy.ndimage import distance_transform_edt
 from plantcv import plantcv as pcv
 
 # img_path = '/Users/karimel-refai/robot_cable_insertion/franka/imgs/straight10_mask (1).png'
-# img_path = '/Users/karimel-refai/robot_cable_insertion/franka/imgs/straight10_mask.png'
-img_path = '/Users/karimel-refai/robot_cable_insertion/franka/imgs/trapezoid4_mask.png'
+img_path = '/Users/karimel-refai/robot_cable_insertion/franka/imgs/straight2_mask.png'
+# img_path = '/Users/karimel-refai/robot_cable_insertion/franka/imgs/trapezoid8_mask.png'
 
 point_coords_fore = np.array(
             [
@@ -229,7 +229,7 @@ def skeletonize_img(img):
 
     # dilate the image to just eliminate risk of holes causes severances in the skeleton
     dilated_img = image.copy()
-    kernel = np.ones((3,3), np.uint8)
+    kernel = np.ones((5,5), np.uint8)
     cv2.dilate(image, kernel, dst=dilated_img, iterations=1)
     # perform skeletonization
     skeleton = skeletonize(dilated_img)
@@ -312,7 +312,7 @@ def find_length_and_endpoints(skeleton_img):
             count_visited = []
             for n in NEIGHS:
                 test_loc = (next_loc[0]+n[0], next_loc[1]+n[1])
-                print("count_visited ", count_visited)
+                # print("count_visited ", count_visited)
                 if (test_loc in visited):
                     count_visited.append(test_loc)
                     if len(count_visited) >= 3:
@@ -360,9 +360,10 @@ def find_length_and_endpoints(skeleton_img):
             # , i.e. when dfs'ing the opposite direction our distance will be negative to differentiate both paths
             increment_amt = -1
     # we only have one neighbor therefore we must be an endpoint
+    # only works for the start point so we need to check
     if counter == 1:
         distance = 0
-        endpoints.append([start_pt, distance])
+        endpoints.insert(0, [start_pt, distance])
         initial_endpoint = True
 
     # pdb.set_trace()
@@ -394,13 +395,13 @@ def find_length_and_endpoints(skeleton_img):
             final_endpoints = [endpoints[0][0], endpoints[largest_pos][0]]
         else:
             final_endpoints = [endpoints[largest_neg][0], endpoints[largest_pos][0]]
+    breakpoint()
     print("num endpoints = ", len(endpoints))
+    print("endpoins are: ", endpoints)
     branch_endpoints = endpoints.copy()
-    if largest_neg:
-        branch_endpoints.pop(largest_neg)
-    if largest_pos != None:
-        branch_endpoints.pop(largest_pos)
     branch_endpoints = [x[0] for x in branch_endpoints]
+    for final_endpoint in final_endpoints:
+        branch_endpoints.remove(final_endpoint)
     pruned_skeleton = prune_branches(branch_endpoints, skeleton_img.copy())
 
     plt.scatter(x = [j[0][1] for j in endpoints], y=[i[0][0] for i in endpoints],c='w')
@@ -419,13 +420,50 @@ def find_length_and_endpoints(skeleton_img):
     print("the total length is ", total_length)
     return total_length, final_endpoints
 
+def test_skeletons():
+    mask = cv2.imread(img_path)
+    # Compute the medial axis (skeleton) and the distance transform
+    # skel, distance = medial_axis(mask, return_distance=True)
+
+    # Compare with other skeletonization algorithms
+    skeleton = skeletonize(mask)
+    skeleton_lee = skeletonize(mask, method='lee')
+
+    # Distance to the background for pixels of the skeleton
+    # dist_on_skel = distance * skel
+
+    fig, axes = plt.subplots(2, 1, figsize=(8, 8), sharex=True, sharey=True)
+    ax = axes.ravel()
+
+    ax[0].imshow(mask, cmap=plt.cm.gray)
+    ax[0].set_title('original')
+    ax[0].axis('off')
+
+    # ax[1].imshow(dist_on_skel, cmap='magma')
+    # ax[1].contour(mask, [0.5], colors='w')
+    # ax[1].set_title('medial_axis')
+    # ax[1].axis('off')
+
+    ax[2].imshow(skeleton, cmap=plt.cm.gray)
+    ax[2].set_title('skeletonize')
+    ax[2].axis('off')
+
+    ax[3].imshow(skeleton_lee, cmap=plt.cm.gray)
+    ax[3].set_title("skeletonize (Lee 94)")
+    ax[3].axis('off')
+
+    fig.tight_layout()
+    plt.show()
 # remove the branches by following them until we reach the main branch while simultaneously setting all those pixels to false
 def prune_branches(branch_endpoints, skeleton_img):
     NEIGHS = [(-1, 0), (1, 0), (0, 1), (0, -1), (-1,-1), (-1,1), (1,-1),(1,1)]
     visited = set()
     # all of the pixels that we passed by
     past_pixels_lst = []
+    save_pixels = []
     for branch_endpoint in branch_endpoints:
+        if branch_endpoint in save_pixels:
+            continue
         q = [branch_endpoint]
         while len(q) > 0:
             next_loc = q.pop()
@@ -440,20 +478,43 @@ def prune_branches(branch_endpoints, skeleton_img):
                         q.append(test_loc)
             # means we've reached the main branch
             if count >= 3:
+                breakpoint()
                 # need to remove these cause they're probably actually a part of the main branch
+                # need to also figure out a way to remove branch_endpoints from the q if they
+
+# THIS IS IMPORTANT READ THIS LINE!!!!! #################################################################
+
+
+            # need to also figure out a way to remove branch_endpoints from the q if they are a part of the 3/4 neighbors that our count found
+            # thinking of having those points be in a remove list and then doing .remove from the q instead of trying to eliminate the last x cause the same point will appear twice
+            # could also have 
+
+            
+# READ THE PARAGRAPH IN BETWEEN!!!!! ########################################################################################################
+                # save_pixels.extend()
                 q = q[:-count]
-                past_pixels_lst = past_pixels_lst[:count]
+                # saved_pixels = past_pixels_lst[count:]
+                plt.scatter(x=[i[1] for i in past_pixels_lst], y=[i[0] for i in past_pixels_lst], c='g')
+                past_pixels_lst = past_pixels_lst[:-count]
+                for past_pixel in past_pixels_lst:
+                    skeleton_img[past_pixel[0]][past_pixel[1]] = False
+                # plt.scatter(x=[i[1] for i in saved_pixels], y=[i[0] for i in saved_pixels], c='g')
+                plt.scatter(x=[i[1] for i in past_pixels_lst], y=[i[0] for i in past_pixels_lst], c='b')
+                plt.scatter(x=[i[1] for i in q], y=[i[0] for i in q], c='r')
+                plt.scatter(x=[i[1] for i in branch_endpoints], y=[i[0] for i in branch_endpoints], c='y')
+                plt.scatter(x=branch_endpoint[1], y=branch_endpoint[0], c='w')
+                plt.scatter(x=next_loc[1], y=next_loc[0], c='m')
+                plt.imshow(skeleton_img)
+                plt.show()
                 break
         # sets all of those passed pixels to False
     # breakpoint()
-    for past_pixel in past_pixels_lst:
-        skeleton_img[past_pixel[0]][past_pixel[1]] = False
     plt.title("pruned skeleton")
     plt.imshow(skeleton_img)
     plt.show()
     return skeleton_img
 
-
+# test_skeletons()
 channel_mask = get_mask()
 
 

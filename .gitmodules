@@ -1,0 +1,3 @@
+[submodule "ur5/ur5py"]
+	path = ur5/ur5py
+	url = https://github.com/TianshuangQiu/ur5py.git

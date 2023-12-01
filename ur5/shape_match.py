@@ -6,6 +6,7 @@ from matplotlib.path import Path
 import json
 import argparse
 from PIL import Image
+from resources import CROP_REGION, curved_template_mask, straight_template_mask, trapezoid_template_mask
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument('--img_path', type=str, default='imgs/curved7.png')
@@ -22,10 +23,7 @@ argparser.add_argument('--straight_template_cnt_path', type=str, default='templa
 argparser.add_argument('--trapezoid_template_cnt_path', type=str, default='templates/trapezoid_template_full_cnt.npy')
 
 # curved_template_mask = cv.imread('/home/r2d2/robot_cable_insertion/franka/templates_crop_master/master_curved_channel_template.png')
-curved_template_mask = cv.imread('template_masks/processed_new_curved_mask.jpg')
-# curved_template_mask = cv.imread('/home/r2d2/robot_cable_insertion/franka/templates_crop_master/master_curved_fill_template.png')
-straight_template_mask = cv.imread('template_masks/master_straight_channel_template.png')
-trapezoid_template_mask = cv.imread('template_masks/master_trapezoid_channel_template.png')
+
 # trapezoid_template_mask = cv.imread('/home/r2d2/R2D2/cable_insertion/templates_crop_master/processed_fuzzy_trap_mask2.png')
 # print(trapezoid_template_mask)
 
@@ -33,8 +31,6 @@ TEMPLATES = {0:'curved', 1:'straight', 2:'trapezoid'}
 # first elem is currved width/height, second elem is straight width/height, third elem is trapezoid width/height
 TEMPLATE_RECTS = [(587.4852905273438, 168.0382080078125),(2.75, 26.5), (12, 5.75)]
 TEMPLATE_RATIOS = [max(t)/min(t) for t in TEMPLATE_RECTS]
-# [minY, maxY, minX, maxX]
-CROP_REGION = [82, 392, 110, 492] 
 
 # DEPTH_IMG, RGB_IMG = get_rgb_get_depth()
 # RGB_IMG = RGB_IMG[:,:,:3]
@@ -52,8 +48,8 @@ def make_img_gray(img_path, img = None):
     # plt.imshow(orig_img)
     # plt.show()
     crop_img = orig_img[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
-    plt.imshow(crop_img)
-    plt.show()
+    # plt.imshow(crop_img)
+    # plt.show()
     # ## REMOVE GLARE
     # seed = (10, 10)  # Use the top left corner as a "background" seed color (assume pixel [10,10] is not in an object).
     # # Use floodFill for filling the background with black color
@@ -70,11 +66,11 @@ def get_edges(gray_img, blur_radius=5, sigma=0, dilate_size=10, canny_threshold=
     dilate_kernel = np.ones((dilate_size, dilate_size), np.uint8)
     dst = cv.GaussianBlur(gray_img,(blur_radius, blur_radius),sigma)
     edges = cv.Canny(dst,canny_threshold[0],canny_threshold[1])
-    plt.imshow(edges, cmap='gray')
-    plt.show()
+    # plt.imshow(edges, cmap='gray')
+    # plt.show()
     edges = cv.dilate(edges, dilate_kernel)
-    plt.imshow(edges, cmap='gray')
-    plt.show()
+    # plt.imshow(edges, cmap='gray')
+    # plt.show()
     return edges
 
 
@@ -109,8 +105,8 @@ def get_channel_rope_cnts(crops, cnt_crop_frame, sorted_cnts, blur_radius=5, sig
             break
         mask = np.zeros_like(crop, dtype=np.uint8)
         _ = cv.drawContours(mask, [cnt],-1, 255, -1)
-        plt.imshow(mask, cmap='gray')
-        plt.show()
+        # plt.imshow(mask, cmap='gray')
+        # plt.show()
         crop_edges = get_edges(cv.cvtColor(mask, cv.COLOR_RGB2GRAY), blur_radius, sigma, dilate_size, canny_threshold)
         cropped_cnts = get_contours(crop_edges, 'all')
         if len(cropped_cnts) == 0:
@@ -136,14 +132,14 @@ def get_cable(img = None, img_path=None, blur_radius=5, sigma=0, dilate_size=10,
         rgb_img = rgb_img[:,:,:3]
         rgb_img = cv.cvtColor(rgb_img, cv.COLOR_BGR2RGB)
         crop_img = rgb_img[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
-        plt.imshow(crop_img)
-        plt.show()
+        # plt.imshow(crop_img)
+        # plt.show()
         gray_img = cv.cvtColor(crop_img, cv.COLOR_RGB2GRAY)
-        plt.imshow(gray_img, cmap='gray')
-        plt.show()
+        # plt.imshow(gray_img, cmap='gray')
+        # plt.show()
         gray_img = cv.threshold(gray_img.copy(), 250, 255, cv.THRESH_BINARY)[1]
-        plt.imshow(gray_img, cmap='gray')
-        plt.show()
+        # plt.imshow(gray_img, cmap='gray')
+        # plt.show()
     else:
         gray_img, rgb_img = make_img_gray(img_path)
     
@@ -153,9 +149,9 @@ def get_cable(img = None, img_path=None, blur_radius=5, sigma=0, dilate_size=10,
     best_mask = None
     for i, cnt in enumerate(best_cnts):
         cnt_rgb = cnt + np.array([CROP_REGION[2], CROP_REGION[0]])
-        plt.imshow(cv.drawContours(rgb_img.copy(), [cnt_rgb], -1, 255, 3))
-        plt.title('check cable contour dimensions')
-        plt.show()
+        # plt.imshow(cv.drawContours(rgb_img.copy(), [cnt_rgb], -1, 255, 3))
+        # plt.title('check cable contour dimensions')
+        # plt.show()
         print(get_bbox(cnt))
         mask = np.zeros_like(crop_img, dtype=np.uint8)
         _ = cv.drawContours(mask, [cnt], -1, 255, 3)
@@ -163,8 +159,8 @@ def get_cable(img = None, img_path=None, blur_radius=5, sigma=0, dilate_size=10,
         mask = mask.sum(axis=-1)
         if i == len(best_cnts) - 1:
             best_mask = mask
-        plt.imshow(mask, cmap='gray')
-        plt.show()
+        # plt.imshow(mask, cmap='gray')
+        # plt.show()
     return best_cnts[-1], best_mask
 
 
@@ -177,8 +173,8 @@ def get_channel( img=None,
         crop_img = rgb_img[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
         orig_gray_img = cv.cvtColor(crop_img, cv.COLOR_RGB2GRAY)
         gray_img = cv.threshold(orig_gray_img.copy(), 60, 255, cv.THRESH_BINARY_INV)[1]
-        plt.imshow(gray_img)
-        plt.show()
+        # plt.imshow(gray_img)
+        # plt.show()
 
     elif img_path is None:
         if DEPTH_IMG is None or RGB_IMG is None:
@@ -188,16 +184,16 @@ def get_channel( img=None,
         rgb_img = rgb_img[:,:,:3]
         rgb_img = cv.cvtColor(rgb_img, cv.COLOR_BGR2RGB)
         crop_img = rgb_img[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
-        plt.imshow(crop_img)
-        plt.show()
+        # plt.imshow(crop_img)
+        # plt.show()
         orig_gray_img = cv.cvtColor(crop_img, cv.COLOR_RGB2GRAY)
         # gray_img = cv.cvtColor(crop_img, cv.COLOR_RGB2GRAY)
-        plt.imshow(orig_gray_img, cmap='gray')
-        plt.show()
+        # plt.imshow(orig_gray_img, cmap='gray')
+        # plt.show()
         # gray_img = orig_gray_img.copy()
         gray_img = cv.threshold(orig_gray_img.copy(), 100, 255, cv.THRESH_BINARY_INV)[1]
-        plt.imshow(gray_img, cmap='gray')
-        plt.show()
+        # plt.imshow(gray_img, cmap='gray')
+        # plt.show()
     else:
         gray_img, rgb_img = make_img_gray(img_path)
     
@@ -241,8 +237,8 @@ def get_channel( img=None,
         minY_box, maxY_box = np.min(box[:,1]), np.max(box[:,1])
         print(minX_box, maxX_box, minY_box, maxY_box)
         print(gray_img.shape)
-        plt.imshow(gray_img[minY_box:maxY_box, minX_box:maxX_box], cmap='gray')
-        plt.show()
+        # plt.imshow(gray_img[minY_box:maxY_box, minX_box:maxX_box], cmap='gray')
+        # plt.show()
         channel_density = gray_img[minY_box:maxY_box, minX_box:maxX_box].sum()
 
         # matched_template = TEMPLATES[min_idx]
@@ -251,9 +247,9 @@ def get_channel( img=None,
         # cv.drawContours(frame, [box], 0, (0, 255, 0), 2)
 
         print(TEMPLATES[min_idx])
-        plt.imshow(gray_img, cmap='gray')
-        plt.scatter(center[0], center[1], c='r')
-        plt.show()
+        # plt.imshow(gray_img, cmap='gray')
+        # plt.scatter(center[0], center[1], c='r')
+        # plt.show()
         box_rgb = box + np.array([CROP_REGION[2], CROP_REGION[0]])
         scale_y, scale_x = max(box_rgb[:,1]) - min(box_rgb[:,1]), max(box_rgb[:,0]) - min(box_rgb[:,0])
         true_size = (scale_x, scale_y)
@@ -265,9 +261,9 @@ def get_channel( img=None,
             min_cnt_idx = i
             max_channel_density = channel_density
         # print(scale_x, scale_y)
-        plt.imshow(cv.drawContours(rgb_img.copy(), [box_rgb], -1, 255, 3))
-        plt.title('check channel contour dimensions')
-        plt.show()
+        # plt.imshow(cv.drawContours(rgb_img.copy(), [box_rgb], -1, 255, 3))
+        # plt.title('check channel contour dimensions')
+        # plt.show()
 
     print(matched_template, min_cnt_val, min_cnt_idx, matched_results[-1])
     
@@ -338,11 +334,11 @@ def get_bbox_crop_mask(crop_mask):
     rect1 = bbox[0]
     box = cv.boxPoints(rect1)
     box = np.int0(box)
-    plt.scatter(bbox[1][0], bbox[1][1], c='g')
-    plt.imshow(crop_mask)
-    plt.scatter(crop_mask.shape[1]//2, crop_mask.shape[0]//2, c='b')
-    plt.imshow(cv.drawContours(crop_mask.copy(), [box], -1, 255, 3))
-    plt.show()
+    # plt.scatter(bbox[1][0], bbox[1][1], c='g')
+    # plt.imshow(crop_mask)
+    # plt.scatter(crop_mask.shape[1]//2, crop_mask.shape[0]//2, c='b')
+    # plt.imshow(cv.drawContours(crop_mask.copy(), [box], -1, 255, 3))
+    # plt.show()
     return bbox
 
 #### IDEA: for getting relative scale of the cropped template compared the dim of cropped template to dim of cropped
@@ -362,8 +358,8 @@ def best_fit_template(all_masks, img, matched_cnt):
     matched_cnt = matched_cnt + np.array([CROP_REGION[2], CROP_REGION[0]])
     cv.drawContours(matched_mask, [matched_cnt], -1, 255, -1)
     matched_mask = matched_mask.sum(axis=-1)
-    plt.imshow(matched_mask, cmap='gray')
-    plt.show()
+    # plt.imshow(matched_mask, cmap='gray')
+    # plt.show()
     most_ones = -np.inf
     best_mask = None
     for template_mask in all_masks:
@@ -382,9 +378,9 @@ def align_channel(template_mask, matched_results, img, matched_cnt, matched_temp
         if v == matched_template:
            matched_template = k
            break 
-    plt.imshow(template_mask, cmap='gray')
-    plt.title('Original template mask')
-    plt.show()
+    # plt.imshow(template_mask, cmap='gray')
+    # plt.title('Original template mask')
+    # plt.show()
     rect, center, size, theta, box = matched_results
     rotation_angles = [theta, -theta, 90-theta, 180-theta, 180+theta]
     # print(box)
@@ -501,15 +497,15 @@ def align_channel(template_mask, matched_results, img, matched_cnt, matched_temp
 
     # print(mask.shape)
     template_mask = mask
-    plt.imshow(template_mask, cmap='gray')
-    plt.title('Padded template mask')
-    plt.show()
+    # plt.imshow(template_mask, cmap='gray')
+    # plt.title('Padded template mask')
+    # plt.show()
 
     scaled_template_mask = cv.resize(template_mask, (scale_x, scale_y), interpolation= cv.INTER_LINEAR)
     print(scaled_template_mask.shape)
-    plt.imshow(scaled_template_mask)
-    plt.title('Scaled template mask')
-    plt.show()
+    # plt.imshow(scaled_template_mask)
+    # plt.title('Scaled template mask')
+    # plt.show()
     padded_scaled_template_mask = center_mask(scaled_template_mask, img)
     # plt.imshow(padded_scaled_template_mask, cmap='gray')
     # plt.title('Padded template mask')
@@ -526,21 +522,21 @@ def align_channel(template_mask, matched_results, img, matched_cnt, matched_temp
         mask[y + shift_y, x + shift_x] = 255
         shifted_rotated_scaled_template_mask = mask
         #shifted_rotated_scaled_template_mask = translate_mask(rotated_scaled_template_mask, (shift_x, shift_y), img)
-        plt.imshow(shifted_rotated_scaled_template_mask)
-        plt.imshow(img, alpha=0.5)
-        plt.title('Shifted, rotated, and scaled template mask')
-        plt.show()
+        # plt.imshow(shifted_rotated_scaled_template_mask)
+        # plt.imshow(img, alpha=0.5)
+        # plt.title('Shifted, rotated, and scaled template mask')
+        # plt.show()
 
 
         all_masks.append(shifted_rotated_scaled_template_mask)
 
     best_template = best_fit_template(all_masks, img, matched_cnt)
 
-    plt.imshow(best_template)
-    plt.imshow(img, alpha=0.5)
-    plt.scatter(center[0]+CROP_REGION[2], center[1]+CROP_REGION[0], c='r')
-    plt.title('Best template')
-    plt.show()
+    # plt.imshow(best_template)
+    # plt.imshow(img, alpha=0.5)
+    # plt.scatter(center[0]+CROP_REGION[2], center[1]+CROP_REGION[0], c='r')
+    # plt.title('Best template')
+    # plt.show()
     
     return best_fit_template(all_masks, img, matched_cnt)
 

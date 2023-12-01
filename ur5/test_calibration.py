@@ -120,7 +120,7 @@ if __name__=='__main__':
     image_pt = [138, 49]
     rw_pt = gasket.image_pt_to_rw_pt(image_pt)
     breakpoint()
-    trans = np.array([rw_pt[0], rw_pt[1], -30])/ 1000
+    trans = np.array([rw_pt[0], rw_pt[1], -15])/ 1000
     rt_pose = RigidTransform(rotation=rot, translation=trans)
     ur.move_pose(rt_pose)
     

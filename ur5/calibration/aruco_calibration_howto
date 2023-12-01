@@ -1,0 +1,55 @@
+STEP 0: Put ArUco tag on work surface
+
+conda activate mog
+
+STEP 1: take image output.png in ~ directory
+
+python /home/aeron/mog/testreal.py
+
+(ctrl+c to exit it)
+
+STEP 2: find tag in image
+
+cd ~/aruco_camera_calibration
+python3 autolab_aruco/tag_to_camera.py -i ~/output.png
+
+(K should start with 384.793, tag length on paper make sure it's correct)
+
+STEP 3: move robot to A,B,C,D points on tag, get robot coordinates, write in ~/aruco_camera_calibration/autolab_aruco/tag_to_robot.py
+Make sure gripper is vertical for this
+
+python3 autolab_aruco/tag_to_robot.py
+
+WARNING: A,B,C,D may be mislabeled by tag, may need to permute
+
+python3 autolab_aruco/camera_to_robot.py
+
+STEP 4: test calibration
+
+python /home/aeron/mog/testreal.py
+
+Move cursor on image to get coordinates (use box corner), write down camera x,y values
+Fill in on autolab_aruco/pixel_to_robot_coord.py, with depth of workspace
+Permute letters until right
+
+STEP 5: copy T_cam_robot.tf from aruco_camera_calibration to mog/ur5/mognn/cal_cam
+Rename T_cam_robot.tf to T_cam_to_robot.tf
+
+STEP 6: get crop
+
+Go to resources.py in mog/ur5/mognn
+Set full window parameters (already in file, just uncomment and comment out the crop parameters)
+
+cd ~/mog/ur5
+python3 mog_naive_v0.py
+
+Tell it to move
+
+Don't worry if it crashes, it's fine (unless it physically crashes then get a mechanic)
+If it doesn't crash, MAKE IT CRASH with ctrl+\
+
+Go to res, go to latest subfolder (current time), open img.png, get crop values
+Put crop values in resources.py, REMEMBER Y IS HORIZONTAL AND X IS VERTICAL IN THIS IMAGE FOR SOME REASON
+
+Run mog_naive_v0.py again and check aiyo.png or whatever
+

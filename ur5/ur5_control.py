@@ -7,6 +7,8 @@ from real_sense_modules import *
 from utils import *
 import argparse
 from gasketRobot import GasketRobot
+from scipy.spatial.transform import Rotation as R
+from resources import CROP_REGION, curved_template_mask, straight_template_mask, trapezoid_template_mask
 
 
 argparser = argparse.ArgumentParser()
@@ -136,15 +138,15 @@ def detect_channel(rgb_img, cable_mask_binary):
     # making it 3 channels
     aligned_channel_mask = cv2.merge((aligned_channel_mask, aligned_channel_mask, aligned_channel_mask))
     aligned_channel_mask = aligned_channel_mask.astype('uint8')
-    plt.imshow(rgb_img)
-    plt.imshow(aligned_channel_mask, alpha=0.5)
-    plt.show()
+    # plt.imshow(rgb_img)
+    # plt.imshow(aligned_channel_mask, alpha=0.5)
+    # plt.show()
 
     # skeletonizing the channel
     channel_skeleton = skeletonize(aligned_channel_mask)
-    plt.imshow(rgb_img)
-    plt.imshow(channel_skeleton, alpha=0.5, cmap='jet')
-    plt.show()
+    # plt.imshow(rgb_img)
+    # plt.imshow(channel_skeleton, alpha=0.5, cmap='jet')
+    # plt.show()
     #getting the length and endpoints of the channel
     channel_length, channel_endpoints = find_length_and_endpoints(channel_skeleton)
     if len(channel_endpoints) == 1:
@@ -222,14 +224,15 @@ def get_rotation(point1, point2):
     cos_theta = np.dot(direction, reference_direction)
     sin_theta = np.sqrt(1 - cos_theta**2)
     dz = np.arctan2(sin_theta, cos_theta)
-    return np.array([-np.pi, 0, dz])
+    euler = np.array([-np.pi, 0, dz])
+    rot_matrix = R.from_euler("xyz", euler).as_matrix()
+    return rot_matrix
 
 
 
-def get_rw_pose(orig_pt, sorted_pixels, n, ratio, camCal, use_depth = False):
+def get_rw_pose(orig_pt, sorted_pixels, n, ratio, camCal, is_channel_pt, use_depth = False):
     next_point = find_nth_nearest_point(orig_pt, sorted_pixels, n)
     offset_point = find_nth_nearest_point(orig_pt, sorted_pixels, int(len(sorted_pixels)*ratio))
-    breakpoint()
     orig_rw_xy = camCal.image_pt_to_rw_pt(orig_pt) 
     next_rw_xy = camCal.image_pt_to_rw_pt(next_point)   
     offset_rw_xy = camCal.image_pt_to_rw_pt(offset_point)
@@ -239,7 +242,10 @@ def get_rw_pose(orig_pt, sorted_pixels, n, ratio, camCal, use_depth = False):
     # want this z height to have the gripper when closed be just barely above the table
     # will need to tune!
     if not use_depth:
-        hardcoded_z = -30
+        hardcoded_z = -15
+        # if we want a point on the channel need to account for the height of the template
+        if is_channel_pt:
+            hardcoded_z += TEMPLATE_HEIGHT[matched_template]
         orig_rw = np.array([orig_rw_xy[0], orig_rw_xy[1],hardcoded_z/1000])
     else:
         print("haven't implemented using depth for pick/place!")
@@ -252,16 +258,16 @@ def get_rw_pose(orig_pt, sorted_pixels, n, ratio, camCal, use_depth = False):
 
 def no_ends_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camCal, use_depth = False):
     cable_skeleton = skeletonize(cable_mask_binary)
-    plt.imshow(cable_skeleton)
-    plt.show()
+    # plt.imshow(cable_skeleton)
+    # plt.show()
     cable_length, cable_endpoints = find_length_and_endpoints(cable_skeleton)
     plt.scatter(x=[i[1] for i in cable_endpoints], y=[i[0] for i in cable_endpoints])
     plt.imshow(rgb_img)
     plt.show()
 
-    plt.imshow(rgb_img)
-    plt.imshow(cable_skeleton, alpha=0.5)
-    plt.show()
+    # plt.imshow(rgb_img)
+    # plt.imshow(cable_skeleton, alpha=0.5)
+    # plt.show()
 
 
     
@@ -270,47 +276,45 @@ def no_ends_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camC
 
     pick_pt = sorted_cable_pts[0]
     place_pt = sorted_channel_pts[0]
-    plt.scatter(x=pick_pt[0], y=pick_pt[1], c='r')
-    plt.scatter(x=place_pt[0], y=place_pt[1], c='b')
+    plt.scatter(x=pick_pt[1], y=pick_pt[0], c='r')
+    plt.scatter(x=place_pt[1], y=place_pt[0], c='b')
     plt.imshow(rgb_img)
     plt.show()
 
-    pick_pose = get_rw_pose(pick_pt, sorted_cable_pts, 20, 0.1, camCal)
+    pick_pose = get_rw_pose(pick_pt, sorted_cable_pts, 20, 0.1, camCal, False)
+    place_pose = get_rw_pose(place_pt, sorted_channel_pts, 20, 0.1, camCal, True)
 
-
+    swapped_sorted_cable_pts = [(pt[1], pt[0]) for pt in sorted_cable_pts]
+    swapped_sorted_channel_pts = [(pt[1], pt[0]) for pt in sorted_channel_pts]
+    pick_pose_swap = get_rw_pose((pick_pt[1], pick_pt[0]), swapped_sorted_cable_pts, 20, 0.1, camCal, False)
+    place_pose_swap = get_rw_pose((place_pt[1], place_pt[0]), swapped_sorted_channel_pts, 20, 0.1, camCal, False)
     breakpoint()
-    robot.move_pose(pick_pose)
-    
-    place_pose = get_rw_pose(place_pt, sorted_channel_pts, 20, 0.1, camCal)
-    # only do this when no ends attached cause we dont care about dragging the rope
-    # z offset for height of channel 
-    place_pose[2] += TEMPLATE_HEIGHT[matched_template]
-    robot.move_pose(place_pose)
-    robot.close_grippers()
+    robot.pick_and_place(pick_pose, place_pose)
 
-    robot.move_to_channel_overhead(transformed_channel_end, rotation)
-    robot.push(transformed_channel_end, rotation)
-    robot.go_home()
-    robot.open_grippers()
+    # robot.move_pose(pick_pose)
+    
+    # place_pose = get_rw_pose(place_pt, sorted_channel_pts, 20, 0.1, camCal)
+    # # only do this when no ends attached cause we dont care about dragging the rope
+    # # z offset for height of channel 
+    # place_pose[2] += TEMPLATE_HEIGHT[matched_template]
+    # robot.move_pose(place_pose)
+    # robot.close_grippers()
+
+    # robot.move_to_channel_overhead(transformed_channel_end, rotation)
+    # robot.push(transformed_channel_end, rotation)
+    # robot.go_home()
+    # robot.open_grippers()
 
 def one_end_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camCal):
     pass
 
 
 
-curved_template_mask = cv.imread('template_masks/processed_new_curved_mask.jpg')
-# curved_template_mask = cv.imread('template_masks/master_curved_fill_template.png')
-straight_template_mask = cv.imread('template_masks/master_straight_channel_template.png')
-trapezoid_template_mask = cv.imread('template_masks/master_trapezoid_channel_template.png')
 
 TEMPLATES = {0:'curved', 1:'straight', 2:'trapezoid'}
 # curved is 2.54cm high, straight is 1.5cm high, trapezoid is 2cm high
-TEMPLATE_HEIGHT = {'curved':0.0254, 'straight':0.015, 'trapezoid':0.02}
-# first elem is currved width/height, second elem is straight width/height, third elem is trapezoid width/height
-TEMPLATE_RECTS = [(587.4852905273438, 168.0382080078125),(2.75, 26.5), (12, 5.75)]
-TEMPLATE_RATIOS = [max(t)/min(t) for t in TEMPLATE_RECTS]
-# [minY, maxY, minX, maxX]
-CROP_REGION = [82, 392, 110, 492]
+TEMPLATE_HEIGHT = {'curved':0.0254, 'straight':0.02, 'trapezoid':0.0254}
+
 TOTAL_PICK_PLACE = 5
 
 
@@ -324,7 +328,12 @@ if __name__=='__main__':
     # Sets up the realsense and gets us an image
     pipeline, colorizer, align, depth_scale = setup_rs_camera()
     color_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
+    # color_img = cv2.resize(color_img, (640, 480))
     rgb_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
+    rgb_img = rgb_img[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
+    plt.scatter(y=138, x=49)
+    plt.imshow(rgb_img)
+    plt.show()
 
     # loads parameters for camera calibration
     camCal = CameraCalibration()
@@ -335,7 +344,7 @@ if __name__=='__main__':
     channel_skeleton, channel_length, channel_endpoints, matched_template = detect_channel(rgb_img, cable_mask_binary)
 
     # performs the experiment given no ends are attached to the channel
-    if EXP_MODE == 'no_ends':
+    if EXP_MODE == 'no_ends_attached':
         no_ends_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camCal)
     # even if we are doing no_ends_attached we simply 
     # need to attach one end then we can run the program as if it was always just one end attached        

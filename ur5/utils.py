@@ -472,7 +472,7 @@ def find_length_and_endpoints(skeleton_img):
     print("IS LOOP:", IS_LOOP)
     print("IS LOOP VISIT: ", IS_LOOP_VISIT)
     if IS_LOOP:
-        final_endpoints = [endpoints[0][0], (0,0)] # MAYBE RAND INDEX LATER
+        final_endpoints = [endpoints[0][0]] # MAYBE RAND INDEX LATER
     else:
         for pt, distance in endpoints:
             if largest_pos is None or distance > endpoints[largest_pos][1]:

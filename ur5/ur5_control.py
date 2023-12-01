@@ -5,10 +5,20 @@ from autolab_core import RigidTransform
 import pdb
 from real_sense_modules import *
 from utils import *
+import argparse
+from gasketRobot import GasketRobot
 
+
+argparser = argparse.ArgumentParser()
+# options for experiment type, either 'no_ends' or 'one_end'
+argparser.add_argument('--exp', type=str, default='no_ends_attached')
+# options for where to push on channel: 'unidirectional', 'golden', 'binary', 'slide'
+argparser.add_argument('--push_mode', type=str, default='unidirectional')
+# options for where to pick the cable at: 'unidirectional', 'golden', 'binary', 'slide'
+argparser.add_argument('--pick_mode', type=str, default='unidirectional')
     
     
-class GasketAssembly():
+class CameraCalibration():
     def __init__(self):
         pass
 
@@ -109,7 +119,7 @@ def detect_cable(rgb_img):
 
     cable_skeleton = skeletonize(cable_mask_binary)
     cable_length, cable_endpoints = find_length_and_endpoints(cable_skeleton)
-
+    assert len(cable_endpoints) == 2
     return cable_skeleton, cable_length, cable_endpoints, cable_mask_binary
 
 def detect_channel(rgb_img, cable_mask_binary):
@@ -137,8 +147,9 @@ def detect_channel(rgb_img, cable_mask_binary):
     plt.show()
     #getting the length and endpoints of the channel
     channel_length, channel_endpoints = find_length_and_endpoints(channel_skeleton)
-
-    return channel_skeleton, channel_length, channel_endpoints
+    if len(channel_endpoints) == 1:
+        print("We have a loop!")
+    return channel_skeleton, channel_length, channel_endpoints, matched_template
 
 def find_closest_point(point_list, point_b):
     # Convert the input lists to NumPy arrays for easier computation
@@ -156,25 +167,22 @@ def find_closest_point(point_list, point_b):
     
     return closest_point
 
-def get_endpoints_in_get_sorted_pts(cable_endpoints, channel_endpoints, cable_skeleton, point_cloud = None, use_depth=False):
+def get_sorted_pts(cable_endpoints, channel_endpoints, cable_skeleton, depth_img = None):
     # just pick an endpoint to be the one that we'll use as our in point
     cable_endpoint_in = cable_endpoints[0]
     channel_endpoint_in, channel_endpoint_out = get_closest_channel_endpoint(cable_endpoint_in, channel_endpoints)
     sorted_channel_pts = sort_skeleton_pts(channel_skeleton, channel_endpoint_in)
     sorted_cable_pts = sort_skeleton_pts(cable_skeleton, cable_endpoint_in)
 
-    # WARNING: seems like tthe pointcloud and depth are expecting the x and y to be flipped!!!!
-    swapped_sorted_cable_pts = [(pt[1], pt[0]) for pt in sorted_cable_pts]
-    swapped_sorted_channel_pts = [(pt[1], pt[0]) for pt in sorted_channel_pts]
-
-    # filter out points that are invalid in the point cloud
-    if use_depth:
-        # vestige from using Zed camera, can be reworked to using realsense but havent done it 
-        
-        # NOTICE THAT THTESE ARE NOW SWAPPED!!!
-        #sorted_channel_pts = filter_points(swapped_sorted_channel_pts, point_cloud) 
-        #sorted_cable_pts = filter_points(swapped_sorted_cable_pts, point_cloud)
+    # filter out points that are invalid/unreasonable in the depth image
+    if depth_img is not None:
         pass
+        # # WARNING: seems like the depth are expecting the x and y to be flipped!!!!
+        # swapped_sorted_cable_pts = [(pt[1], pt[0]) for pt in sorted_cable_pts]
+        # swapped_sorted_channel_pts = [(pt[1], pt[0]) for pt in sorted_channel_pts]
+        # filtered_cable_pts = filter_points(swapped_sorted_channel_pts, depth_img)
+        # filtered_channel_pts = filter_points(swapped_sorted_channel_pts, depth_img)
+        # # NOTICE THAT THTESE ARE NOW SWAPPED!!!
 
     # these are aslo now swapped!
     channel_endpoint_in = sorted_channel_pts[0]
@@ -183,13 +191,14 @@ def get_endpoints_in_get_sorted_pts(cable_endpoints, channel_endpoints, cable_sk
     cable_endpoint_in = sorted_cable_pts[0]
     cable_endpoint_out = sorted_cable_pts[-1]
 
-
+    # TODO CHECK IF THIS IS WORKING PROPERLY!!!!
     # IDEA: update the channel startpoint to be the closest point on the channel skeleton to the cable endpoint
     # then actually delete the indices before that point from sorted_channel_pts
-    channel_endpoint_in = find_closest_point(sorted_channel_pts, cable_endpoint_in)
-    sorted_channel_pts = sorted_channel_pts[sorted_channel_pts.index(channel_endpoint_in):]
+    
+    # channel_endpoint_in = find_closest_point(sorted_channel_pts, cable_endpoint_in)
+    # sorted_channel_pts = sorted_channel_pts[sorted_channel_pts.index(channel_endpoint_in):]
 
-    return cable_endpoint_in, cable_endpoint_out, sorted_cable_pts, channel_endpoint_in, channel_endpoint_out, sorted_channel_pts
+    return sorted_cable_pts, sorted_channel_pts
 
 def find_nth_nearest_point(point, sorted_points, n):
     # print(endpoint)
@@ -217,25 +226,31 @@ def get_rotation(point1, point2):
 
 
 
-def get_rw_pose(orig_pt, sorted_pixels, n, ratio, gasket):
+def get_rw_pose(orig_pt, sorted_pixels, n, ratio, camCal, use_depth = False):
     next_point = find_nth_nearest_point(orig_pt, sorted_pixels, n)
     offset_point = find_nth_nearest_point(orig_pt, sorted_pixels, int(len(sorted_pixels)*ratio))
     breakpoint()
-    orig_rw_xy = gasket.image_pt_to_rw_pt(orig_pt) 
-    next_rw_xy = gasket.image_pt_to_rw_pt(next_point)   
-    offset_rw_xy = gasket.image_pt_to_rw_pt(offset_point)
+    orig_rw_xy = camCal.image_pt_to_rw_pt(orig_pt) 
+    next_rw_xy = camCal.image_pt_to_rw_pt(next_point)   
+    offset_rw_xy = camCal.image_pt_to_rw_pt(offset_point)
     rot = get_rotation(orig_rw_xy, next_rw_xy)
     orig_rw_xy = orig_rw_xy / 1000
 
-    # good z height seems to be around -30
-    orig_rw = np.array([orig_rw_xy[0], orig_rw_xy[1],-30/1000])
+    # want this z height to have the gripper when closed be just barely above the table
+    # will need to tune!
+    if not use_depth:
+        hardcoded_z = -30
+        orig_rw = np.array([orig_rw_xy[0], orig_rw_xy[1],hardcoded_z/1000])
+    else:
+        print("haven't implemented using depth for pick/place!")
+        raise ValueError()
     # converting pose to rigid transform to use with ur5py library
     orig_rt_pose = RigidTransform(rotation=rot, translation=orig_rw)
     return orig_rt_pose
 
 # gets rigid transform given pose
 
-def no_ends_attached(cable_mask_binary, cable_endpoints, channel_endpoints, gasket):
+def no_ends_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camCal, use_depth = False):
     cable_skeleton = skeletonize(cable_mask_binary)
     plt.imshow(cable_skeleton)
     plt.show()
@@ -250,8 +265,7 @@ def no_ends_attached(cable_mask_binary, cable_endpoints, channel_endpoints, gask
 
 
     
-    cable_endpoint_in, cable_endpoint_out, sorted_cable_pts, channel_endpoint_in, channel_endpoint_out,\
-    sorted_channel_pts = get_endpoints_in_get_sorted_pts(cable_endpoints, channel_endpoints, cable_skeleton)
+    sorted_cable_pts, sorted_channel_pts = get_sorted_pts(cable_endpoints, channel_endpoints, cable_skeleton)
 
 
     pick_pt = sorted_cable_pts[0]
@@ -261,28 +275,26 @@ def no_ends_attached(cable_mask_binary, cable_endpoints, channel_endpoints, gask
     plt.imshow(rgb_img)
     plt.show()
 
-    rope_end_pose = get_rw_pose(pick_pt, sorted_cable_pts, 20, 0.1, gasket)
+    pick_pose = get_rw_pose(pick_pt, sorted_cable_pts, 20, 0.1, camCal)
+
 
     breakpoint()
+    robot.move_pose(pick_pose)
     
-    rope_end_pose[2] += 0.017 # offset to make sure dont hit table
-    robot.move_pose(rope_end_pose)
-    
-    transformed_channel_end, transformed_channel_next, transformed_channel_offset, rotation = find_transformed_point_and_rotation_channel(place_pt, sorted_channel_pts, 30, 1/8)
-    
-    pick_pt = sorted_cable_pts[0]
-    place_pt = sorted_channel_pts[0]
-    plt.scatter(x=pick_pt[0], y=pick_pt[1], c='r')
-    plt.scatter(x=place_pt[0], y=place_pt[1], c='b')
-    plt.imshow(rgb_img)
-    plt.show()
-
+    place_pose = get_rw_pose(place_pt, sorted_channel_pts, 20, 0.1, camCal)
     # only do this when no ends attached cause we dont care about dragging the rope
-    transformed_channel_end[2] += TEMPLATE_HEIGHT[matched_template]
+    # z offset for height of channel 
+    place_pose[2] += TEMPLATE_HEIGHT[matched_template]
+    robot.move_pose(place_pose)
+    robot.close_grippers()
+
     robot.move_to_channel_overhead(transformed_channel_end, rotation)
     robot.push(transformed_channel_end, rotation)
     robot.go_home()
     robot.open_grippers()
+
+def one_end_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camCal):
+    pass
 
 
 
@@ -303,41 +315,28 @@ TOTAL_PICK_PLACE = 5
 
 
 if __name__=='__main__':
-    robot = UR5Robot()
-    rot = np.array([[-1, 0, 0],
-                    [0, 1, 0],
-                    [0, 0, -1]])
-    # trans = np.array([52.3, -473.5, -30])/ 1000
-    
-    # input('enter to enter freedrive')
-    # ur.start_teach()
-    # input('enter tro end freedrive')
-    # ur.stop_teach()
-    
+    args = argparser.parse_args()
+    PUSH_MODE = args.push_mode
+    PICK_MODE = args.pick_mode
+    EXP_MODE = args.exp
+    robot = GasketRobot()
 
     # Sets up the realsense and gets us an image
     pipeline, colorizer, align, depth_scale = setup_rs_camera()
     color_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
     rgb_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
 
-    gasket = GasketAssembly()
-    gasket.load_calibration_params()
+    # loads parameters for camera calibration
+    camCal = CameraCalibration()
+    camCal.load_calibration_params()
 
+    # gets initial state of cable and channel
     cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img)
-    channel_skeleton, channel_length, channel_endpoints = detect_channel(rgb_img, cable_mask_binary)
+    channel_skeleton, channel_length, channel_endpoints, matched_template = detect_channel(rgb_img, cable_mask_binary)
 
-
-    no_ends_attached(cable_mask_binary, cable_endpoints, channel_endpoints, gasket)
-
-
-
-    # y,x format
-    image_pt = [138, 49]
-    rw_pt = gasket.image_pt_to_rw_pt(image_pt)
-    breakpoint()
-    trans = np.array([rw_pt[0], rw_pt[1], -30])/ 1000
-    rt_pose = RigidTransform(rotation=rot, translation=trans)
-    robot.move_pose(rt_pose)
-    
-
-    NO_ENDS_ATTACHED = True
+    # performs the experiment given no ends are attached to the channel
+    if EXP_MODE == 'no_ends':
+        no_ends_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camCal)
+    # even if we are doing no_ends_attached we simply 
+    # need to attach one end then we can run the program as if it was always just one end attached        
+    one_end_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camCal)

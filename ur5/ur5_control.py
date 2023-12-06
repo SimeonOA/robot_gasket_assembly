@@ -183,8 +183,7 @@ def no_ends_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camC
     # plt.imshow(cable_skeleton, alpha=0.5)
     # plt.show()
 
-
-    
+    # we sort the points on channel and cable to get a relation between the points
     sorted_cable_pts, sorted_channel_pts = get_sorted_pts(cable_endpoints, channel_endpoints, cable_skeleton)
 
     breakpoint()
@@ -195,14 +194,14 @@ def no_ends_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camC
     plt.imshow(rgb_img)
     plt.show()
 
-    # needs to be swapped as this is how it is expected
+    # needs to be swapped as this is how it is expected for the robot
     swapped_sorted_cable_pts = [(pt[1], pt[0]) for pt in sorted_cable_pts]
     swapped_sorted_channel_pts = [(pt[1], pt[0]) for pt in sorted_channel_pts]
     pick_pose_swap = get_rw_pose((pick_pt[1], pick_pt[0]), swapped_sorted_cable_pts, 20, 0.1, camCal, False)
     place_pose_swap = get_rw_pose((place_pt[1], place_pt[0]), swapped_sorted_channel_pts, 20, 0.1, camCal, False)
     breakpoint()
     robot.pick_and_place(pick_pose_swap, place_pose_swap)
-
+    return swapped_sorted_cable_pts, swapped_sorted_channel_pts
     # robot.move_pose(pick_pose)
     
     # place_pose = get_rw_pose(place_pt, sorted_channel_pts, 20, 0.1, camCal)
@@ -218,7 +217,42 @@ def no_ends_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camC
     # robot.open_grippers()
 
 def one_end_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camCal):
-    pass
+    cable_skeleton = skeletonize(cable_mask_binary)
+    # plt.imshow(cable_skeleton)
+    # plt.show()
+    cable_length, cable_endpoints = find_length_and_endpoints(cable_skeleton)
+    plt.scatter(x=[i[1] for i in cable_endpoints], y=[i[0] for i in cable_endpoints])
+    plt.imshow(rgb_img)
+    plt.show()
+
+    # plt.imshow(rgb_img)
+    # plt.imshow(cable_skeleton, alpha=0.5)
+    # plt.show()
+
+    # we sort the points on channel and cable to get a relation between the points
+    sorted_cable_pts, sorted_channel_pts = get_sorted_pts(cable_endpoints, channel_endpoints, cable_skeleton)
+
+    # now we want the last endpoints to pick and place
+    pick_pt = sorted_cable_pts[-1] 
+    place_pt = sorted_channel_pts[-1]
+    plt.scatter(x=pick_pt[1], y=pick_pt[0], c='r')
+    plt.scatter(x=place_pt[1], y=place_pt[0], c='b')
+    plt.imshow(rgb_img)
+    plt.show()
+
+    # --------- EDIT THIS LATER TO INCLUDE SUPPORT FOR ALL TEMPLATES --------
+    # needs to be swapped as this is how it is expected for the robot
+    swapped_sorted_cable_pts = [(pt[1], pt[0]) for pt in sorted_cable_pts]
+    swapped_sorted_channel_pts = [(pt[1], pt[0]) for pt in sorted_channel_pts]
+    pick_pose_swap = get_rw_pose((pick_pt[1], pick_pt[0]), swapped_sorted_cable_pts, 20, 0.1, camCal, False)
+    place_pose_swap = get_rw_pose((place_pt[1], place_pt[0]), swapped_sorted_channel_pts, 20, 0.1, camCal, False)
+    breakpoint()
+    robot.pick_and_place(pick_pose_swap, place_pose_swap)
+    slide_goal_pt = sorted_channel_pts[0]
+    slide_goal_pose = get_rw_pose((slide_goal_pt[1], slide_goal_pt[0]), swapped_sorted_channel_pts, 20, 0.1, camCal, False)
+    
+    # should actually slide across the straight channel (hopefully)
+    robot.push(slide_goal_pose, is_place_pt=True, force_ctrl=True)
 
 
 
@@ -258,6 +292,10 @@ if __name__=='__main__':
     # performs the experiment given no ends are attached to the channel
     if EXP_MODE == 'no_ends_attached':
         no_ends_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camCal)
+    
     # even if we are doing no_ends_attached we simply 
     # need to attach one end then we can run the program as if it was always just one end attached        
+    color_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
+    rgb_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
+    cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img)
     one_end_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camCal)

@@ -40,7 +40,13 @@ class GasketRobot(UR5Robot):
         self.move_pose(place_pose)
         self.open_grippers()
 
-    def push(self, pose, force_ctrl=False):
+        # always want to push down on where we placed
+        self.push(place_pose, is_place_pt=True)
+
+    def push(self, pose, is_place_pt=False, force_ctrl=False):
+        if is_place_pt:
+            # decrease height so that we can push down and 
+            pose.translation[2] -= 0.01
         if not force_ctrl:
             self.close_grippers()
             self.move_pose(pose)

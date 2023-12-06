@@ -13,65 +13,44 @@ import pdb
 
 class ImageRobot():
 
-    def __init__(self, model_path = './'):
-        model_path = './'
-        model_name = 'cam_robot_regr.pkl'
-        scaler_name = 'cam_robot_scaler.pkl'
-        self.load_model(model_path, model_path + model_name, scaler_name)
+    def __init__(self, model_path = ''):
+        self.load_model()
 
-    def load_model(self, model_path, model_name, scaler_name):
-        self.model = load(open(model_path+model_name, 'rb'))
-        self.scaler = load(open(model_path+scaler_name, 'rb'))
+    def load_model(self):
+        self.model_x = load(open('/home/simeonoa/robot_cable_insertion/ur5/calibration/im_to_real_x.pkl', 'rb'))
+        self.model_y = load(open('/home/simeonoa/robot_cable_insertion/ur5/calibration/im_to_real_y.pkl', 'rb'))
 
     def image_pt_to_rw_pt(self, image_pt):
-        #print('Transform...')
-        image_pt_tr = self.scaler.transform([image_pt])
         #print('Predict...')
-        return self.model.predict(image_pt_tr)
+        if type(image_pt) is list or type(image_pt) is tuple or image_pt.shape != (1,2):
+            image_pt = np.array(image_pt).reshape((1,2))
+        return np.array([self.model_x.predict(image_pt)[0][0], self.model_y.predict(image_pt)[0][0]])
 
-    def train_model(self, calibration_path='./cam_cal_09_11_23.csv'):
+    def train_model(self, calibration_path='/home/simeonoa/robot_cable_insertion/ur5/calibration/cam_cal_12_05_23_final.csv'):
 
         print('Calibrating...')
-        data = pd.read_csv(calibration_path)
-        im_x = data.im_x
-        im_y = data.im_y
-        real_x = data.real_x
-        real_y = data.real_y
+        df = pd.read_csv(calibration_path)
+        im_x = df['im_x'].values.reshape(-1, 1)
+        real_x = df['real_x'].values.reshape(-1, 1)
+        im_y = df['im_y'].values.reshape(-1, 1)
+        real_y = df['real_y'].values.reshape(-1, 1)
 
-        num_data_pts = im_x.shape[0]
-        X = np.array([[im_x[_], im_y[_]] for _ in range(num_data_pts)])
-        y = np.array([[real_x[_], real_y[_]] for _ in range(num_data_pts)])
+        im_coords = np.column_stack((im_x, im_y))
+        model_x = LinearRegression()
+        model_y = LinearRegression()
+        model_x.fit(im_coords, real_x)
+        model_y.fit(im_coords, real_y)
 
-        scaler = StandardScaler()
-        scaler.fit(X)
-        mean_val = scaler.mean_
-        var_val = scaler.var_
-
-        X_tr = scaler.transform(X)
-        X_train, X_test, y_train, y_test = train_test_split(
-            X_tr, y, train_size=0.9, test_size=0.1, random_state=1)
-
-        reg = LinearRegression().fit(X_train, y_train)
-        # reg = MLPRegressor(hidden_layer_sizes=(100,100,100), random_state=1,
-        #                     max_iter=50000).fit(X_train, y_train)
-        print (reg.score(X_test, y_test))
-        print (reg.coef_)
-        print (reg.intercept_)
-
-        model_path = './'
-        model_name = 'cam_robot_regr.pkl'
-        scaler_name = 'cam_robot_scaler.pkl'
-
-        dump(reg, open(model_path+model_name, 'wb'))
-        dump(scaler, open(model_path+scaler_name, 'wb'))
+        dump(model_x, open('/home/simeonoa/robot_cable_insertion/ur5/calibration/im_to_real_x.pkl', 'wb'))
+        dump(model_y, open('/home/simeonoa/robot_cable_insertion/ur5/calibration/im_to_real_y.pkl', 'wb'))
 
 def main():
     ir = ImageRobot()
     ir.train_model()
-    image_pt = [36,72]
+    image_pt = [269.4,184]
     rw_pt  = ir.image_pt_to_rw_pt(image_pt)
     print ('Real world point is', rw_pt)
-    print ('Real world point should be: 109, -618')
+    print ('Real world point should be: [-128.2, -556.1]')
 
 if __name__ == '__main__':
     main()

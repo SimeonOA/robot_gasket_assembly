@@ -3,6 +3,8 @@ import numpy as np
 from autolab_core import RigidTransform
 import pdb
 from real_sense_modules import *
+import matplotlib.pyplot as plt
+from calibration.image_robot import ImageRobot
 
     
     
@@ -111,8 +113,30 @@ if __name__=='__main__':
     
 
     pipeline, colorizer, align, depth_scale = setup_rs_camera()
-    color_image, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
+    rs_color_image, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
+    # rs_color_image = cv2.resize(rs_color_image, (640, 480))
+    CROP_REGION = [120, 360, 130, 460]
+    x_crop = [120, 360]
+    y_crop = [130, 460]
+    CROP_REGION = [136, 600, 321, 940]
+    x_crop = [136, 600]
+    y_crop = [321, 940]
+    color_image = rs_color_image[x_crop[0]:x_crop[1], y_crop[0]:y_crop[1]]
+    color_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2RGB)
 
+    ir = ImageRobot()
+    ir.train_model()
+    image_pt = [269.4,184]
+    
+    plt.scatter(y=image_pt[1], x=image_pt[0])
+    plt.imshow(color_image)
+    plt.show()
+    rw_pt  = ir.image_pt_to_rw_pt(image_pt)
+    trans = np.array([rw_pt[0], rw_pt[1], -15])/ 1000
+    rt_pose = RigidTransform(rotation=rot, translation=trans)
+    ur.move_pose(rt_pose)
+
+    # 4
     gasket = GasketAssembly()
     gasket.load_calibration_params()
     # y,x format

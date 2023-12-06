@@ -1,5 +1,9 @@
 from ur5py import UR5Robot
 import time
+from autolab_core import RigidTransform
+from scipy.spatial.transform import Rotation as R
+import numpy as np
+import copy
 
 class GasketRobot(UR5Robot):
     def __init__(self):
@@ -10,7 +14,11 @@ class GasketRobot(UR5Robot):
     def go_home(self):
         # pose that seems to produce a decent home position
         # [-0.06753579965968742, -0.27221476673273887, 0.2710406059524434, -0.11638054743562316, -3.1326272370313237, -0.1142659892269994]
-        pass
+        pose = [0.12344210595006844, -0.4612683741824295, 0.41821285455132917, 0, np.pi, 0]
+        rot = R.from_euler("xyz", pose[3:]).as_matrix()
+        trans = pose[:3]
+        home_pose = RigidTransform(rotation=rot, translation=trans)
+        self.move_pose(home_pose)
 
     def open_grippers(self):
         self.gripper.open()
@@ -22,9 +30,11 @@ class GasketRobot(UR5Robot):
         self.open_grippers()
         self.move_pose(pick_pose)
         self.close_grippers()
-        # need to be slightly overhead first 
-        overhead_pose = pick_pose
-        overhead_pose[2] += 0.017 # some offset, probably need to tune
+        # need to be slightly overhead first
+        overhead_translation = copy.deepcopy(place_pose.translation)
+        overhead_translation[2] += 0.017 # some offset, probably need to tune
+        overhead_pose = RigidTransform(rotation=place_pose.rotation, translation=overhead_translation)
+        breakpoint
         self.move_pose(overhead_pose)
         # go down to our final position
         self.move_pose(place_pose)

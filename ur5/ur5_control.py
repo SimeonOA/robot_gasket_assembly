@@ -9,6 +9,7 @@ import argparse
 from gasketRobot import GasketRobot
 from scipy.spatial.transform import Rotation as R
 from resources import CROP_REGION, curved_template_mask, straight_template_mask, trapezoid_template_mask
+from calibration.image_robot import ImageRobot
 
 
 argparser = argparse.ArgumentParser()
@@ -20,97 +21,6 @@ argparser.add_argument('--push_mode', type=str, default='unidirectional')
 argparser.add_argument('--pick_mode', type=str, default='unidirectional')
     
     
-class CameraCalibration():
-    def __init__(self):
-        pass
-
-    def load_calibration_params(self):
-        self.use_pick_pt_depth = False
-        self.use_hardcoded_cal = True
-
-        self.x_intercept = 150.1111247
-        self.x_coef_on_x = -2.07787301 #* (360-140)/(360-120)
-        self.x_coef_on_y = 0.02772887548
-
-        self.y_intercept = -759.9587912
-        self.y_coef_on_y = 2.069261384
-        self.y_coef_on_x = 0.02158838398
-
-        # UPPER PLANE VALUES
-        self.upper_height_value = 1.582
-        self.upper_z_value = 150
-
-        self.upper_x_intercept = 72.43845257
-        self.upper_x_coef_on_x = -1.665
-        self.upper_x_coef_on_y = 0.01
-
-        self.upper_y_intercept = -709.8271378
-        self.upper_y_coef_on_y = 1.656541759
-        self.upper_y_coef_on_x = 0.03923585725
-
-        self.surface_height_value = 1.255
-        self.surface_z_value = -16
-
-        f_x = -0.4818473759
-        c_x = 73.77723968
-
-        f_y = 0.4821812388
-        c_y = 365.0698399
-
-        self.K = np.array([[f_x, 0, c_x], [0, f_y, c_y], [0, 0, 1]])
-
-        # depth * np.linalg.inv(self.K) * np.r_[pixel, 1.0]
-
-    def image_pt_to_rw_pt(self, image_pt, depth=None):
-		#reversed_image_pt = [image_pt[1], image_pt[0]]
-
-		#self.x_intercept = 150.1111247
-		#self.x_coef_on_x = -2.07787301
-		#self.x_coef_on_y = 0.02772887548
-
-		#self.y_intercept = -759.9587912
-		#self.y_coef_on_y = 2.069261384
-		#self.y_coef_on_x = 0.02158838398
-		
-        if depth is not None:
-            pass
-            # height = 800 - depth
-
-            # height_fraction = height/(self.upper_z_value - self.surface_z_value)
-
-            # print("height fraction:" + str(height_fraction))
-
-            # image_pt_tr = self.cam_scaler.transform([image_pt])
-            # rw_pt_surface = self.cam_model.predict(image_pt_tr)
-
-            # rw_pt_upper = [0,0]
-            # rw_pt_upper[0] = self.upper_x_intercept + self.upper_x_coef_on_x*image_pt[0] + self.upper_x_coef_on_y*image_pt[1]
-            # rw_pt_upper[1] = self.upper_y_intercept + self.upper_y_coef_on_x*image_pt[0] + self.upper_y_coef_on_y*image_pt[1]
-
-            # print(rw_pt_upper)
-            # print(rw_pt_surface)
-
-            # rw_pt_surface = np.array(rw_pt_surface)
-            # rw_pt_upper = np.array(rw_pt_upper)
-            
-            # if height_fraction > 0.15:
-            #     rw_pt = height_fraction * rw_pt_upper + (1 - height_fraction) * rw_pt_surface
-            # else:
-            #     rw_pt = rw_pt_surface
-
-        else:
-            if self.use_hardcoded_cal:
-                rw_pt = [0,0]
-                rw_pt[0] = self.x_intercept + self.x_coef_on_x*image_pt[1] + self.x_coef_on_y*image_pt[0]
-                rw_pt[1] = self.y_intercept + self.y_coef_on_x*image_pt[1] + self.y_coef_on_y*image_pt[0]
-
-            # else:
-            #     image_pt_tr = self.cam_scaler.transform([image_pt])
-            #     rw_pt = self.cam_model.predict(image_pt_tr)
-
-
-        return np.array(rw_pt)
-
 def detect_cable(rgb_img):
     # Detecting the cable
     cable_cnt, cable_mask_hollow  = get_cable(img = rgb_img)
@@ -233,6 +143,10 @@ def get_rotation(point1, point2):
 def get_rw_pose(orig_pt, sorted_pixels, n, ratio, camCal, is_channel_pt, use_depth = False):
     next_point = find_nth_nearest_point(orig_pt, sorted_pixels, n)
     offset_point = find_nth_nearest_point(orig_pt, sorted_pixels, int(len(sorted_pixels)*ratio))
+    
+    # needs to be done since the point was relative to the entire view of the camera but our model is trained on points defined only in the cropped frame of the image
+    orig_pt = np.array(orig_pt) - np.array([CROP_REGION[2], CROP_REGION[0]])
+    next_pt = np.array(next_point) - np.array([CROP_REGION[2], CROP_REGION[0]])
     orig_rw_xy = camCal.image_pt_to_rw_pt(orig_pt) 
     next_rw_xy = camCal.image_pt_to_rw_pt(next_point)   
     offset_rw_xy = camCal.image_pt_to_rw_pt(offset_point)
@@ -273,23 +187,21 @@ def no_ends_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camC
     
     sorted_cable_pts, sorted_channel_pts = get_sorted_pts(cable_endpoints, channel_endpoints, cable_skeleton)
 
-
-    pick_pt = sorted_cable_pts[0]
+    breakpoint()
+    pick_pt = sorted_cable_pts[0] 
     place_pt = sorted_channel_pts[0]
     plt.scatter(x=pick_pt[1], y=pick_pt[0], c='r')
     plt.scatter(x=place_pt[1], y=place_pt[0], c='b')
     plt.imshow(rgb_img)
     plt.show()
 
-    pick_pose = get_rw_pose(pick_pt, sorted_cable_pts, 20, 0.1, camCal, False)
-    place_pose = get_rw_pose(place_pt, sorted_channel_pts, 20, 0.1, camCal, True)
-
+    # needs to be swapped as this is how it is expected
     swapped_sorted_cable_pts = [(pt[1], pt[0]) for pt in sorted_cable_pts]
     swapped_sorted_channel_pts = [(pt[1], pt[0]) for pt in sorted_channel_pts]
     pick_pose_swap = get_rw_pose((pick_pt[1], pick_pt[0]), swapped_sorted_cable_pts, 20, 0.1, camCal, False)
     place_pose_swap = get_rw_pose((place_pt[1], place_pt[0]), swapped_sorted_channel_pts, 20, 0.1, camCal, False)
     breakpoint()
-    robot.pick_and_place(pick_pose, place_pose)
+    robot.pick_and_place(pick_pose_swap, place_pose_swap)
 
     # robot.move_pose(pick_pose)
     
@@ -324,20 +236,20 @@ if __name__=='__main__':
     PICK_MODE = args.pick_mode
     EXP_MODE = args.exp
     robot = GasketRobot()
-
+    robot.go_home()
+    
     # Sets up the realsense and gets us an image
     pipeline, colorizer, align, depth_scale = setup_rs_camera()
     color_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
-    # color_img = cv2.resize(color_img, (640, 480))
+
     rgb_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
-    rgb_img = rgb_img[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
+    cropped_img = rgb_img[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
     plt.scatter(y=138, x=49)
     plt.imshow(rgb_img)
     plt.show()
 
-    # loads parameters for camera calibration
-    camCal = CameraCalibration()
-    camCal.load_calibration_params()
+    # loads model for camera to real world
+    camCal = ImageRobot()
 
     # gets initial state of cable and channel
     cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img)

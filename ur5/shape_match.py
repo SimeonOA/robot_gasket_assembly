@@ -1,3 +1,4 @@
+import sys
 import cv2 as cv
 import numpy as np
 from matplotlib import pyplot as plt
@@ -5,7 +6,11 @@ import random
 from matplotlib.path import Path
 import json
 import argparse
+import pyzed.sl as sl
+from skimage.morphology import skeletonize
 from PIL import Image
+from franka.sensing.utils_binary import skeletonize_img, find_length_and_endpoints, sort_skeleton_pts
+from franka.sensing.depth_sensing import parseArg, get_rgb_get_depth
 from resources import CROP_REGION, curved_template_mask, straight_template_mask, trapezoid_template_mask
 
 argparser = argparse.ArgumentParser()
@@ -39,14 +44,16 @@ TEMPLATE_RATIOS = [max(t)/min(t) for t in TEMPLATE_RECTS]
 # plt.show()
 DEPTH_IMG = np.zeros((720,1280,3))
 RGB_IMG = np.zeros((720,1280,3))
+CROP_REGION = [224, 557, 219, 913]
 
 def make_img_gray(img_path, img = None):
     if img is None:
         img = cv.imread(img_path)
     # orig_img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
     orig_img = img
-    # plt.imshow(orig_img)
-    # plt.show()
+    plt.imshow(orig_img)
+    plt.title('original image')
+    plt.show()
     crop_img = orig_img[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
     # plt.imshow(crop_img)
     # plt.show()
@@ -184,8 +191,9 @@ def get_channel( img=None,
         rgb_img = rgb_img[:,:,:3]
         rgb_img = cv.cvtColor(rgb_img, cv.COLOR_BGR2RGB)
         crop_img = rgb_img[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
-        # plt.imshow(crop_img)
-        # plt.show()
+        plt.imshow(crop_img)
+        plt.title('cropped image')
+        plt.show()
         orig_gray_img = cv.cvtColor(crop_img, cv.COLOR_RGB2GRAY)
         # gray_img = cv.cvtColor(crop_img, cv.COLOR_RGB2GRAY)
         # plt.imshow(orig_gray_img, cmap='gray')
@@ -607,6 +615,7 @@ def get_closest_channel_endpoint(cable_endpoint, channel_endpoints):
     farthest_channel_endpoint = channel_endpoints[0] if channel_endpoints[1] == closest_channel_endpoint else channel_endpoints[1]
     return closest_channel_endpoint, farthest_channel_endpoint
 
+
 if __name__ == '__main__':
     DEPTH_IMG, RGB_IMG = get_rgb_get_depth()
     RGB_IMG = RGB_IMG[:,:,:3]
@@ -619,10 +628,10 @@ if __name__ == '__main__':
     # get_bboxes(template_cnts, cv.imread(args.img_path))
     if not args.robot:
         matched_template, matched_results, best_cnts = get_channel(img_path=args.img_path, blur_radius=args.blur_radius, 
-                    sigma=args.sigma, dilate_size=args.dilate_size_channel, canny_threshold=args.canny_threshold, viz=args.visualize)
+                    sigma=args.sigma, dilate_size=args.dilate_size_channel, canny_threshold=args.canny_threshold_channel, viz=args.visualize)
     else:
-        cable_cnt, cable_mask_hollow  = get_cable(img_path=None, blur_radius=args.blur_radius, sigma=args.sigma, dilate_size=args.dilate_size_rope, 
-                  canny_threshold=args.canny_threshold_rope, viz=args.visualize)
+        # cable_cnt, cable_mask_hollow  = get_cable(img_path=None, blur_radius=args.blur_radius, sigma=args.sigma, dilate_size=args.dilate_size_rope, 
+        #           canny_threshold=args.canny_threshold_rope, viz=args.visualize)
         # get_channel(img_path=None, blur_radius=args.blur_radius, sigma=args.sigma, dilate_size=args.dilate_size_channel,canny_threshold=args.canny_threshold_rope, viz=args.visualize)
         matched_template, matched_results, channel_cnt, rgb_img = get_channel(img_path=None, blur_radius=args.blur_radius, sigma=args.sigma, 
                                                      dilate_size=args.dilate_size_channel, canny_threshold=args.canny_threshold_channel, viz=args.visualize)

@@ -1,0 +1,6 @@
+Metadata-Version: 2.1
+Name: ur5py
+Version: 0.1.0
+Summary: UR5 library for the Berkeley Autolab which handles control, planning, kinematics
+Author: Justin Kerr
+Author-email: justin_kerr@berkeley.edu

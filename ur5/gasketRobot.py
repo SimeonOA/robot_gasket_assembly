@@ -1,4 +1,4 @@
-from ur5py import UR5Robot
+from ur5py.ur5 import UR5Robot
 import time
 from autolab_core import RigidTransform
 from scipy.spatial.transform import Rotation as R

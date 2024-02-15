@@ -23,7 +23,52 @@ import math
 import matplotlib.pyplot as plt
 from skimage.morphology import skeletonize
 from sklearn.linear_model import RANSACRegressor
+import pyzed.sl as sl
 
+def setup_zed_camera(cam_id):
+    side_cam = sl.Camera()
+    # Create a InitParameters object and set configuration parameters
+    init_params = sl.InitParameters()
+    init_params.depth_mode = sl.DEPTH_MODE.PERFORMANCE  # Use PERFORMANCE depth mode
+    init_params.coordinate_units = sl.UNIT.METER  # Use meter units (for depth measurements)
+    init_params.camera_resolution = sl.RESOLUTION.HD720
+    init_params.set_from_serial_number(cam_id) #overhead camera
+    status = side_cam.open(init_params)
+    if status != sl.ERROR_CODE.SUCCESS:
+        raise RuntimeError("Camera Failed To Open")
+    runtime_parameters = sl.RuntimeParameters()
+    # runtime_parameters.sensing_mode = sl.SENSING_MODE.SENSING_MODE_FILL
+    calibration_params = side_cam.get_camera_information().camera_configuration.calibration_parameters
+    # Focal length of the left eye in pixels
+    focal_left_x = calibration_params.left_cam.fx
+    focal_left_y = calibration_params.left_cam.fy
+    princ_left_x = calibration_params.left_cam.cx
+    princ_left_y = calibration_params.left_cam.cy
+    # First radial distortion coefficient
+    k1 = calibration_params.left_cam.disto[0]
+    # Translation between left and right eye on z-axis
+    # tz = calibration_params.T.z
+    # Horizontal field of view of the left eye in degrees
+    # h_fov = calibration_params.left_cam.h_fov
+
+    image = sl.Mat()
+    point_cloud = sl.Mat()
+    depth = sl.Mat()
+    return side_cam, runtime_parameters, image, point_cloud, depth
+
+def grab_zed_mat(side_cam,runtime_parameters, image, point_cloud, depth):
+    if side_cam.grab(runtime_parameters) == sl.ERROR_CODE.SUCCESS:
+        side_cam.retrieve_image(image, sl.VIEW.LEFT)
+        side_cam.retrieve_measure(point_cloud, sl.MEASURE.XYZRGBA)
+        side_cam.retrieve_measure(depth, sl.MEASURE.DEPTH)
+    return image, point_cloud, depth
+
+def get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth):
+
+    image, _, _ = grab_zed_mat(side_cam, runtime_parameters, image, point_cloud, depth)
+    color_img = image.get_data()[:,:,:3]
+    rgb_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
+    return rgb_img 
 
 def sort_skeleton_pts(skeleton_img, endpoint):
     NEIGHS = [(-1, 0), (1, 0), (0, 1), (0, -1), (-1,-1), (-1,1), (1,-1),(1,1)]

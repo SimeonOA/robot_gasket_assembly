@@ -15,7 +15,8 @@ class GasketRobot(UR5Robot):
     def go_home(self):
         # pose that seems to produce a decent home position
         # [-0.06753579965968742, -0.27221476673273887, 0.2710406059524434, -0.11638054743562316, -3.1326272370313237, -0.1142659892269994]
-        pose = [0.12344210595006844, -0.4612683741824295, 0.41821285455132917, 0, np.pi, 0]
+        # pose = [0.12344210595006844, -0.4612683741824295, 0.41821285455132917, 0, np.pi, 0] <== this is the home for the metal workspace
+        pose = [0.4860, -0.1003, 0.05539, 2.2289, 2.2339, 0.0000] #<== home for the table workspace
         rot = R.from_euler("xyz", pose[3:]).as_matrix()
         trans = pose[:3]
         home_pose = RigidTransform(rotation=rot, translation=trans)

@@ -272,11 +272,14 @@ if __name__=='__main__':
     robot = GasketRobot()
     robot.go_home()
     
-    # Sets up the realsense and gets us an image
-    pipeline, colorizer, align, depth_scale = setup_rs_camera()
-    color_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
+    # # Sets up the realsense and gets us an image
+    # pipeline, colorizer, align, depth_scale = setup_rs_camera()
+    # color_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
 
-    rgb_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
+    # Sets up the zed camera and gets us an image
+    side_cam, runtime_parameters, image, point_cloud, depth = setup_zed_camera(cam_id=20120598) #should be overhead camera id
+    rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
+    
     cropped_img = rgb_img[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
     plt.scatter(y=138, x=49)
     plt.imshow(rgb_img)
@@ -295,7 +298,9 @@ if __name__=='__main__':
     
     # even if we are doing no_ends_attached we simply 
     # need to attach one end then we can run the program as if it was always just one end attached        
-    color_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
-    rgb_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
+    # color_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
+    # rgb_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
+    
+    rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
     cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img)
     one_end_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camCal)

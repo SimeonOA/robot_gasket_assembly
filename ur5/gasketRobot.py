@@ -129,7 +129,15 @@ if __name__ == "__main__":
     #     while time.time()-last_record < 0.002:
     #         pass 
 
+    positions = []
+    for x in range(560, 756):
+        y = (0.07*(x-560.13))**2 - 513
+        rx = 0.00478*x - 1.958
+        ry = 0.00192*x - 4.1765
+        positions.append([x,y,-323.13, rx,ry,0.03])
 
-
+    for pos in positions:
+        ur.move_pose(pos)
+        time.sleep(0.01)
 
 

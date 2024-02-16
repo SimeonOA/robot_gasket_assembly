@@ -31,7 +31,8 @@ def setup_zed_camera(cam_id):
     init_params = sl.InitParameters()
     init_params.depth_mode = sl.DEPTH_MODE.PERFORMANCE  # Use PERFORMANCE depth mode
     init_params.coordinate_units = sl.UNIT.METER  # Use meter units (for depth measurements)
-    init_params.camera_resolution = sl.RESOLUTION.HD720
+    init_params.camera_resolution = sl.RESOLUTION.HD1080
+    # init_params.camera_fps = 30
     init_params.set_from_serial_number(cam_id) #overhead camera
     status = side_cam.open(init_params)
     if status != sl.ERROR_CODE.SUCCESS:
@@ -67,7 +68,8 @@ def get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth):
 
     image, _, _ = grab_zed_mat(side_cam, runtime_parameters, image, point_cloud, depth)
     color_img = image.get_data()[:,:,:3]
-    rgb_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
+    rgb_img = color_img
+    # rgb_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
     return rgb_img 
 
 def sort_skeleton_pts(skeleton_img, endpoint):

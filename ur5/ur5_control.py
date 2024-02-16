@@ -1,4 +1,4 @@
-from ur5py import UR5Robot
+from ur5py.ur5 import UR5Robot
 import numpy as np
 from shape_match import *
 from autolab_core import RigidTransform
@@ -10,6 +10,7 @@ from gasketRobot import GasketRobot
 from scipy.spatial.transform import Rotation as R
 from resources import CROP_REGION, curved_template_mask, straight_template_mask, trapezoid_template_mask
 from calibration.image_robot import ImageRobot
+from zed_camera import ZedCamera
 
 
 argparser = argparse.ArgumentParser()
@@ -272,12 +273,15 @@ if __name__=='__main__':
     robot = GasketRobot()
     robot.go_home()
     
+    # camera = ZedCamera(20120598)
     # # Sets up the realsense and gets us an image
     # pipeline, colorizer, align, depth_scale = setup_rs_camera()
     # color_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
 
     # Sets up the zed camera and gets us an image
-    side_cam, runtime_parameters, image, point_cloud, depth = setup_zed_camera(cam_id=20120598) #should be overhead camera id
+    overhead_cam_id = 22008760 # overhead camera
+    side_cam_id = 20120598 # side camera
+    side_cam, runtime_parameters, image, point_cloud, depth = setup_zed_camera(overhead_cam_id) #should be overhead camera id
     rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
     
     cropped_img = rgb_img[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]

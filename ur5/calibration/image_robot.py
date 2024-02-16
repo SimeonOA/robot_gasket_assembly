@@ -26,7 +26,7 @@ class ImageRobot():
             image_pt = np.array(image_pt).reshape((1,2))
         return np.array([self.model_x.predict(image_pt)[0][0], self.model_y.predict(image_pt)[0][0]])
 
-    def train_model(self, calibration_path='/home/simeonoa/robot_cable_insertion/ur5/calibration/cam_cal_12_05_23_final.csv'):
+    def train_model(self, calibration_path='/home/simeonoa/robot_cable_insertion/ur5/calibration/cam_cal_02_15_24_final.csv'):
 
         print('Calibrating...')
         df = pd.read_csv(calibration_path)
@@ -47,10 +47,10 @@ class ImageRobot():
 def main():
     ir = ImageRobot()
     ir.train_model()
-    image_pt = [269.4,184]
+    image_pt = [1184,759]
     rw_pt  = ir.image_pt_to_rw_pt(image_pt)
     print ('Real world point is', rw_pt)
-    print ('Real world point should be: [-128.2, -556.1]')
+    print ('Real world point should be: [-447.1	-312]')
 
 if __name__ == '__main__':
     main()

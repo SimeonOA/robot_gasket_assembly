@@ -146,11 +146,12 @@ def get_rw_pose(orig_pt, sorted_pixels, n, ratio, camCal, is_channel_pt, use_dep
     offset_point = find_nth_nearest_point(orig_pt, sorted_pixels, int(len(sorted_pixels)*ratio))
     
     # needs to be done since the point was relative to the entire view of the camera but our model is trained on points defined only in the cropped frame of the image
-    orig_pt = np.array(orig_pt) - np.array([CROP_REGION[2], CROP_REGION[0]])
-    next_pt = np.array(next_point) - np.array([CROP_REGION[2], CROP_REGION[0]])
+    orig_pt = np.array(orig_pt) #- np.array([CROP_REGION[2], CROP_REGION[0]])
+    next_pt = np.array(next_point) #- np.array([CROP_REGION[2], CROP_REGION[0]])
     orig_rw_xy = camCal.image_pt_to_rw_pt(orig_pt) 
     next_rw_xy = camCal.image_pt_to_rw_pt(next_point)   
     offset_rw_xy = camCal.image_pt_to_rw_pt(offset_point)
+    breakpoint()
     rot = get_rotation(orig_rw_xy, next_rw_xy)
     orig_rw_xy = orig_rw_xy / 1000
 
@@ -255,6 +256,65 @@ def one_end_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camC
     # should actually slide across the straight channel (hopefully)
     robot.push(slide_goal_pose, is_place_pt=True, force_ctrl=True)
 
+# NOTE: this function is busted, idk why
+def click_and_move_pts_on_img(rgb_img):
+
+    rope_list = []
+    channel_list = []
+    # Function to handle mouse click events
+    def on_mouse_click(event):
+        if event.button == 1:  # Left-click
+            rope_list.append((event.xdata, event.ydata))
+            plt.plot(event.xdata, event.ydata, 'ro')  # Plot a red dot where the click occurred
+        elif event.button == 3:  # Right-click
+            channel_list.append((event.xdata, event.ydata))
+            plt.plot(event.xdata, event.ydata, 'bo')  # Plot a blue dot where the click occurred
+
+        plt.draw()
+
+    plt.imshow(rgb_img)
+    plt.axis('image')  # Set aspect ratio to be equal
+    # Connect the click event to the figure
+    fig = plt.gcf()
+    fig.canvas.mpl_connect('button_press_event', on_mouse_click)
+
+    # Show the plot and wait for user input
+    plt.show()
+
+    for pt in rope_list:
+        # pretty sure we need it swapped
+        rw_pt = camCal.image_pt_to_rw_pt((pt[1], pt[0]))
+        rot = R.from_euler("xyz", [0,np.pi,0]).as_matrix()
+        trans = [rw_pt[0], rw_pt[1], -15/1000]
+        rw_pose = RigidTransform(rotation=rot, translation=trans)
+        breakpoint()
+        robot.move_pose(rw_pose)
+
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+
+class PointSelector:
+    def __init__(self, image):
+        self.image = image
+        self.points = []
+        self.fig, self.ax = plt.subplots()
+        self.ax.imshow(self.image)
+        self.cid = self.fig.canvas.mpl_connect('button_press_event', self.onclick)
+        plt.show()
+
+    def onclick(self, event):
+        if event.xdata is not None and event.ydata is not None:
+            x = int(event.xdata)
+            y = int(event.ydata)
+            if 0 <= x < self.image.shape[1] and 0 <= y < self.image.shape[0]:
+                self.points.append((x, y))
+                print("Clicked at (x={}, y={}) - RGB: {}".format(x, y, self.image[y, x]))
+                rw_pt = camCal.image_pt_to_rw_pt([x,	y])
+                rot = R.from_euler("xyz", [0,np.pi,0]).as_matrix()
+                trans = [rw_pt[0]/1000, rw_pt[1]/1000, -15/1000]
+                rw_pose = RigidTransform(rotation=rot, translation=trans)
+                breakpoint()
+                robot.move_pose(rw_pose)
 
 
 
@@ -273,24 +333,34 @@ if __name__=='__main__':
     robot = GasketRobot()
     robot.go_home()
     
-    # camera = ZedCamera(20120598)
+    
     # # Sets up the realsense and gets us an image
-    # pipeline, colorizer, align, depth_scale = setup_rs_camera()
-    # color_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
+    pipeline, colorizer, align, depth_scale = setup_rs_camera()
+    time.sleep(1)
+    rgb_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
 
     # Sets up the zed camera and gets us an image
-    overhead_cam_id = 22008760 # overhead camera
-    side_cam_id = 20120598 # side camera
-    side_cam, runtime_parameters, image, point_cloud, depth = setup_zed_camera(overhead_cam_id) #should be overhead camera id
-    rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
+    # camera = ZedCamera(20120598)
+    # overhead_cam_id = 22008760 # overhead camera
+    # side_cam_id = 20120598 # side camera
+    # side_cam, runtime_parameters, image, point_cloud, depth = setup_zed_camera(overhead_cam_id) #should be overhead camera id
+    # rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
     
-    cropped_img = rgb_img[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
-    plt.scatter(y=138, x=49)
-    plt.imshow(rgb_img)
-    plt.show()
+    # plt.imshow(rgb_img)
+    # plt.show()
+    # cropped_img = rgb_img[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
+    # plt.imshow(cropped_img)
+    # plt.show()
 
     # loads model for camera to real world
     camCal = ImageRobot()
+
+    #### Calibrration Testing #########
+    # rgb_img = get_rs_image(pipeline, align, depth_scale, use_depth=False)
+    # click_and_move_pts_on_img(rgb_img)
+    # PointSelector(rgb_img)
+    plt.imshow(rgb_img)
+    plt.show()
 
     # gets initial state of cable and channel
     cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img)
@@ -305,6 +375,6 @@ if __name__=='__main__':
     # color_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
     # rgb_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
     
-    rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
+    # rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
     cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img)
     one_end_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camCal)

@@ -29,18 +29,31 @@ class GasketRobot(UR5Robot):
         self.gripper.close()
     
     def pick_and_place(self, pick_pose, place_pose):
-        self.open_grippers()
+        self.gripper.set_pos(135)
         self.move_pose(pick_pose)
         self.close_grippers()
+        time.sleep(0.5)
         # need to be slightly overhead first
-        overhead_translation = copy.deepcopy(place_pose.translation)
-        overhead_translation[2] += 0.017 # some offset, probably need to tune
+        overhead_translation = copy.deepcopy(pick_pose.translation)
+        overhead_translation[2] += 0.02 # some offset, probably need to tune
         overhead_pose = RigidTransform(rotation=place_pose.rotation, translation=overhead_translation)
-        breakpoint
         self.move_pose(overhead_pose)
-        # go down to our final position
-        self.move_pose(place_pose)
+        breakpoint()
+
+        overhead_translation = copy.deepcopy(place_pose.translation)
+        overhead_translation[2] += 0.02 # some offset, probably need to tune
+        overhead_pose = RigidTransform(rotation=place_pose.rotation, translation=overhead_translation)
+        self.move_pose(overhead_pose)
         self.open_grippers()
+        # go down to our final position
+        overhead_translation[2] += 0.02 # some offset, probably need to tune
+        self.move_pose(RigidTransform(rotation=place_pose.rotation, translation=overhead_translation))
+        self.close_grippers()
+
+        self.descend_to_pose(place_pose)
+
+        self.gripper.set_pos(135)
+        time.sleep(0.5)
 
         # always want to push down on where we placed
         self.push(place_pose, is_place_pt=True)
@@ -61,24 +74,23 @@ class GasketRobot(UR5Robot):
             self.end_force_mode()  
 
 
-    def descend_to_pose(self, pose, convert=True, force_limit=69):
-        if convert:
-            pose.translation[2] += 0.05
-            
-        else:
-            pose[2] += 0.05
+    def descend_to_pose(self, pose, convert=True, force_limit=40):
+        # if convert:
+        #     pose.translation[2] += 0.05
+        # else:
+        #     pose[2] += 0.05
 
         self.move_pose(pose, convert=convert)
         time.sleep(0.5)
         prev_force = np.array(self.get_current_force()[:3])
         while True:
-            print(np.array(self.get_current_force()[:3]))
+            # print(np.array(self.get_current_force()[:3]))
             if convert:
-                pose.translation[2] -= 0.001
+                pose.translation[2] -= 0.0001
             else:
-                pose[2] -= 0.001
-            self.servo_pose(pose, time=0.1, convert=convert)
-            time.sleep(0.1)
+                pose[2] -= 0.0001
+            self.servo_pose(pose, time=0.01, convert=convert)
+            time.sleep(0.01)
             diff = np.linalg.norm(np.array(self.get_current_force()[:3]) - prev_force)
             if diff > force_limit:
                 break

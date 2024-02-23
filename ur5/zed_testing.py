@@ -43,11 +43,16 @@ side_cam, runtime_parameters, image, point_cloud, depth = setup_zed_camera(cam_i
 rgb_img = get_zed_img(side_cam,runtime_parameters, image, point_cloud, depth )
 # rgb_img = 0
 print("aaaa")
-cv2.imshow("aa",rgb_img)
-# plt.imshow(rgb_img)
-# plt.show()
+# Naming a window 
+# cv2.namedWindow("Resized_Window", cv2.WINDOW_NORMAL) 
+  
+# Using resizeWindow()  
+# cv2.imshow("Resized Window",rgb_img)
+# cv2.resizeWindow("Resized_Window", 300, 700)
+plt.imshow(rgb_img)
+plt.show()
 # plt.show()
 # waits for user to press any key 
 # (this is necessary to avoid Python kernel form crashing) 
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+# cv2.waitKey(0)
+# cv2.destroyAllWindows()

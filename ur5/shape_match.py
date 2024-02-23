@@ -44,7 +44,6 @@ TEMPLATE_RATIOS = [max(t)/min(t) for t in TEMPLATE_RECTS]
 # plt.show()
 DEPTH_IMG = np.zeros((720,1280,3))
 RGB_IMG = np.zeros((720,1280,3))
-CROP_REGION = [224, 557, 219, 913]
 
 def make_img_gray(img_path, img = None):
     if img is None:
@@ -129,8 +128,14 @@ def get_cable(img = None, img_path=None, blur_radius=5, sigma=0, dilate_size=10,
         rgb_img  = img.copy()
         # gray_img, crop_img= make_img_gray(None, img)
         crop_img = rgb_img[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
+        # plt.imshow(crop_img)
+        # plt.show()
         orig_gray_img = cv.cvtColor(crop_img, cv.COLOR_RGB2GRAY)
-        gray_img = cv.threshold(orig_gray_img.copy(), 120, 255, cv.THRESH_BINARY_INV)[1]
+        plt.imshow(orig_gray_img)
+        plt.show()
+        gray_img = cv.threshold(orig_gray_img.copy(), 200, 255, cv.THRESH_BINARY_INV)[1]
+        # plt.imshow(gray_img)
+        # plt.show()
     elif img_path is None:
         if DEPTH_IMG is None or RGB_IMG is None:
             _, rgb_img = get_rgb_get_depth()
@@ -139,14 +144,14 @@ def get_cable(img = None, img_path=None, blur_radius=5, sigma=0, dilate_size=10,
         rgb_img = rgb_img[:,:,:3]
         rgb_img = cv.cvtColor(rgb_img, cv.COLOR_BGR2RGB)
         crop_img = rgb_img[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
-        # plt.imshow(crop_img)
-        # plt.show()
+        plt.imshow(crop_img)
+        plt.show()
         gray_img = cv.cvtColor(crop_img, cv.COLOR_RGB2GRAY)
-        # plt.imshow(gray_img, cmap='gray')
-        # plt.show()
+        plt.imshow(gray_img, cmap='gray')
+        plt.show()
         gray_img = cv.threshold(gray_img.copy(), 250, 255, cv.THRESH_BINARY)[1]
-        # plt.imshow(gray_img, cmap='gray')
-        # plt.show()
+        plt.imshow(gray_img, cmap='gray')
+        plt.show()
     else:
         gray_img, rgb_img = make_img_gray(img_path)
     
@@ -156,9 +161,9 @@ def get_cable(img = None, img_path=None, blur_radius=5, sigma=0, dilate_size=10,
     best_mask = None
     for i, cnt in enumerate(best_cnts):
         cnt_rgb = cnt + np.array([CROP_REGION[2], CROP_REGION[0]])
-        # plt.imshow(cv.drawContours(rgb_img.copy(), [cnt_rgb], -1, 255, 3))
-        # plt.title('check cable contour dimensions')
-        # plt.show()
+        plt.imshow(cv.drawContours(rgb_img.copy(), [cnt_rgb], -1, 255, 3))
+        plt.title('check cable contour dimensions')
+        plt.show()
         print(get_bbox(cnt))
         mask = np.zeros_like(crop_img, dtype=np.uint8)
         _ = cv.drawContours(mask, [cnt], -1, 255, 3)
@@ -173,15 +178,17 @@ def get_cable(img = None, img_path=None, blur_radius=5, sigma=0, dilate_size=10,
 
 
 def get_channel( img=None,
-                cable_mask = None,img_path = None, blur_radius=5, sigma=0, dilate_size=10, canny_threshold=(100,255), viz=False):
+                cable_mask = None,img_path = None, blur_radius=5, sigma=0, dilate_size=7, canny_threshold=(100,255), viz=False):
     if img is not None:
         rgb_img = img.copy()
         # gray_img, crop_img  = make_img_gray(None, img)
         crop_img = rgb_img[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
         orig_gray_img = cv.cvtColor(crop_img, cv.COLOR_RGB2GRAY)
-        gray_img = cv.threshold(orig_gray_img.copy(), 60, 255, cv.THRESH_BINARY_INV)[1]
-        # plt.imshow(gray_img)
-        # plt.show()
+        plt.imshow(orig_gray_img)
+        plt.show()
+        gray_img = cv.threshold(orig_gray_img.copy(), 108, 255, cv.THRESH_BINARY_INV)[1]
+        plt.imshow(gray_img)
+        plt.show()
 
     elif img_path is None:
         if DEPTH_IMG is None or RGB_IMG is None:
@@ -217,6 +224,7 @@ def get_channel( img=None,
     # plt.imshow(edges)
     # plt.show()
 
+    #NOTE: CHANGED
     sorted_cnts = get_contours(edges)[:2]
     # sorted_cnts = [get_contours(edges)[0]]
     matched_template = None
@@ -228,12 +236,13 @@ def get_channel( img=None,
     for i, cnt in enumerate(sorted_cnts):
         # plt.imshow(cv.drawContours(rgb_img.copy(), [cnt], -1, 255, 3))
         # plt.show()
-        # print(get_bbox(cnt))
+        print(get_bbox(cnt))
         rect, center, size, theta = get_bbox(cnt)
         box = cv.boxPoints(rect)
         box = np.int0(box)
         print('size: ', size)
         area = size[0]*size[1]
+        print('arrea', area)
         if area < 1000:
             continue
         ratio = max(size)/min(size)
@@ -261,6 +270,7 @@ def get_channel( img=None,
         box_rgb = box + np.array([CROP_REGION[2], CROP_REGION[0]])
         scale_y, scale_x = max(box_rgb[:,1]) - min(box_rgb[:,1]), max(box_rgb[:,0]) - min(box_rgb[:,0])
         true_size = (scale_x, scale_y)
+        breakpoint()
         if min_dist < min_cnt_val and channel_density > max_channel_density:
             matched_results = [rect, center, size, theta, box_rgb]
             min_cnt_val = min_dist
@@ -269,9 +279,9 @@ def get_channel( img=None,
             min_cnt_idx = i
             max_channel_density = channel_density
         # print(scale_x, scale_y)
-        # plt.imshow(cv.drawContours(rgb_img.copy(), [box_rgb], -1, 255, 3))
-        # plt.title('check channel contour dimensions')
-        # plt.show()
+        plt.imshow(cv.drawContours(rgb_img.copy(), [box_rgb], -1, 255, 3))
+        plt.title('check channel contour dimensions')
+        plt.show()
 
     print(matched_template, min_cnt_val, min_cnt_idx, matched_results[-1])
     
@@ -630,8 +640,8 @@ if __name__ == '__main__':
         matched_template, matched_results, best_cnts = get_channel(img_path=args.img_path, blur_radius=args.blur_radius, 
                     sigma=args.sigma, dilate_size=args.dilate_size_channel, canny_threshold=args.canny_threshold_channel, viz=args.visualize)
     else:
-        # cable_cnt, cable_mask_hollow  = get_cable(img_path=None, blur_radius=args.blur_radius, sigma=args.sigma, dilate_size=args.dilate_size_rope, 
-        #           canny_threshold=args.canny_threshold_rope, viz=args.visualize)
+        cable_cnt, cable_mask_hollow  = get_cable(img_path=None, blur_radius=args.blur_radius, sigma=args.sigma, dilate_size=args.dilate_size_rope, 
+                  canny_threshold=args.canny_threshold_rope, viz=args.visualize)
         # get_channel(img_path=None, blur_radius=args.blur_radius, sigma=args.sigma, dilate_size=args.dilate_size_channel,canny_threshold=args.canny_threshold_rope, viz=args.visualize)
         matched_template, matched_results, channel_cnt, rgb_img = get_channel(img_path=None, blur_radius=args.blur_radius, sigma=args.sigma, 
                                                      dilate_size=args.dilate_size_channel, canny_threshold=args.canny_threshold_channel, viz=args.visualize)

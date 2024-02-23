@@ -1,5 +1,6 @@
 import pyrealsense2 as rs
 import numpy as np
+import matplotlib.pyplot as plt
 import cv2
 import time 
 
@@ -77,6 +78,8 @@ def main():
     # Values to crop images to fit workspace
     y_crop = [0, 1280]
     x_crop = [0, 720]
+    plt.imshow(color_image)
+    plt.show()
     cv2.imshow('Image', color_image)
     cv2.waitKey()
     viz_rs_images(color_image, colorizer, aligned_depth_frame, x_crop, y_crop, use_depth=use_depth)

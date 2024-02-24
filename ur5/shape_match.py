@@ -8,6 +8,7 @@ import json
 import argparse
 import pyzed.sl as sl
 from skimage.morphology import skeletonize
+from skimage.transform import probabilistic_hough_line
 from PIL import Image
 from franka.sensing.utils_binary import skeletonize_img, find_length_and_endpoints, sort_skeleton_pts
 from franka.sensing.depth_sensing import parseArg, get_rgb_get_depth
@@ -54,8 +55,9 @@ def make_img_gray(img_path, img = None):
     plt.title('original image')
     plt.show()
     crop_img = orig_img[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
-    # plt.imshow(crop_img)
-    # plt.show()
+    plt.imshow(crop_img)
+    plt.title('cropped image')
+    plt.show()
     # ## REMOVE GLARE
     # seed = (10, 10)  # Use the top left corner as a "background" seed color (assume pixel [10,10] is not in an object).
     # # Use floodFill for filling the background with black color
@@ -132,6 +134,7 @@ def get_cable(img = None, img_path=None, blur_radius=5, sigma=0, dilate_size=10,
         # plt.show()
         orig_gray_img = cv.cvtColor(crop_img, cv.COLOR_RGB2GRAY)
         plt.imshow(orig_gray_img)
+        plt.title('cropped image')
         plt.show()
         gray_img = cv.threshold(orig_gray_img.copy(), 200, 255, cv.THRESH_BINARY_INV)[1]
         # plt.imshow(gray_img)
@@ -144,7 +147,7 @@ def get_cable(img = None, img_path=None, blur_radius=5, sigma=0, dilate_size=10,
         rgb_img = rgb_img[:,:,:3]
         rgb_img = cv.cvtColor(rgb_img, cv.COLOR_BGR2RGB)
         crop_img = rgb_img[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
-        plt.imshow(crop_img)
+        plt.imshowplt.imshow(crop_img)
         plt.show()
         gray_img = cv.cvtColor(crop_img, cv.COLOR_RGB2GRAY)
         plt.imshow(gray_img, cmap='gray')
@@ -270,7 +273,6 @@ def get_channel( img=None,
         box_rgb = box + np.array([CROP_REGION[2], CROP_REGION[0]])
         scale_y, scale_x = max(box_rgb[:,1]) - min(box_rgb[:,1]), max(box_rgb[:,0]) - min(box_rgb[:,0])
         true_size = (scale_x, scale_y)
-        breakpoint()
         if min_dist < min_cnt_val and channel_density > max_channel_density:
             matched_results = [rect, center, size, theta, box_rgb]
             min_cnt_val = min_dist
@@ -671,6 +673,7 @@ if __name__ == '__main__':
     plt.imshow(aligned_channel_mask, alpha=0.5)
     plt.show()
     channel_skeleton = skeletonize(aligned_channel_mask)
+    channel_skeleton = probabilistic_hough_line(channel_skeleton, line_length=10)
     plt.imshow(channel_skeleton)
     plt.imshow(rgb_img, alpha=0.5)
     plt.title('overlayed channel skeleton and rgb image')

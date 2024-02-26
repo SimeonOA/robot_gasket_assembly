@@ -15,3 +15,5 @@ curved_template_mask = cv2.imread('templates_crop_master/master_curved_channel_t
 # curved_template_mask = cv2.imread('templates_crop_master/master_curved_fill_template.png')
 straight_template_mask = cv2.imread('templates_crop_master/master_straight_channel_template.png')
 trapezoid_template_mask = cv2.imread('templates_crop_master/master_trapezoid_channel_template.png')
+
+MIDPOINT_THRESHOLD = 10

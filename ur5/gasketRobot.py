@@ -5,6 +5,7 @@ from scipy.spatial.transform import Rotation as R
 from tqdm import tqdm
 import numpy as np
 import copy
+# from ur5_control import *
 
 class GasketRobot(UR5Robot):
     def __init__(self):
@@ -16,11 +17,13 @@ class GasketRobot(UR5Robot):
         # pose that seems to produce a decent home position
         # [-0.06753579965968742, -0.27221476673273887, 0.2710406059524434, -0.11638054743562316, -3.1326272370313237, -0.1142659892269994]
         pose = [0.12344210595006844, -0.4612683741824295, 0.41821285455132917, 0, np.pi, 0] #<== this is the home for the metal workspace
-        # pose = [0.4860, -0.1003, 0.05539, 2.2289, 2.2339, 0.0000] #<== home for the table workspace
-        rot = R.from_euler("xyz", pose[3:]).as_matrix()
-        trans = pose[:3]
-        home_pose = RigidTransform(rotation=rot, translation=trans)
-        self.move_pose(home_pose)
+        # rot = R.from_euler("xyz", pose[3:]).as_matrix()
+        # trans = pose[:3]
+        # home_pose = RigidTransform(rotation=rot, translation=trans)
+        
+        # want to mvoe in jointspace cause that guarantees that the wrist doesn't overrotate
+        home_joints = [-1.0757859388934534, -1.5192683378802698, -1.6562803427325647, -1.537062946950094, 1.5727322101593018, 0.49344709515571594]
+        self.move_joint(home_joints, vel=0.5, interp="joint")
 
     def open_grippers(self):
         self.gripper.open()
@@ -28,9 +31,9 @@ class GasketRobot(UR5Robot):
     def close_grippers(self):
         self.gripper.close()
     
-    def pick_and_place(self, pick_pose, place_pose):
+    def pick_and_place(self, pick_pose, place_pose, move_low=False):
         pick_overhead_trans= copy.deepcopy(pick_pose.translation)
-        pick_overhead_trans[2] += 0.03 # some offset, probably need to tune
+        pick_overhead_trans[2] += 0.00 if move_low else 0.03 # some offset, probably need to tune
         pick_overhead_pose = RigidTransform(rotation=pick_pose.rotation, translation=pick_overhead_trans)
         self.gripper.set_pos(135)
         self.move_pose(pick_overhead_pose)
@@ -46,18 +49,22 @@ class GasketRobot(UR5Robot):
         print('==========')
 
         place_overhead_translation = copy.deepcopy(place_pose.translation)
-        place_overhead_translation[2] += 0.03 # some offset, probably need to tune
+        place_overhead_translation[2] += 0.00 if move_low else 0.03 # some offset, probably need to tune
         place_overhead_pose = RigidTransform(rotation=place_pose.rotation, translation=place_overhead_translation)
+        place_pre_push_pose_trans = copy.deepcopy(place_pose.translation)
+        place_pre_push_pose_trans[2] += 0.03
+        place_pre_push_pose = RigidTransform(rotation=place_pose.rotation, translation=place_pre_push_pose_trans)
         self.move_pose(place_overhead_pose)
 
         place_release_translation = copy.deepcopy(place_pose.translation)
-        place_release_translation[2] += 0.01
+        place_release_translation[2] += 0.00 if move_low else 0.01
         place_release_pose = RigidTransform(rotation=place_pose.rotation, translation=place_release_translation)
         self.move_pose(place_release_pose, interp="tcp")
         self.open_grippers()
         time.sleep(0.5)
         
-        self.move_pose(place_overhead_pose, interp="tcp")
+
+        self.move_pose(place_pre_push_pose, interp="tcp")
         self.close_grippers()
         time.sleep(0.5)
 
@@ -67,9 +74,12 @@ class GasketRobot(UR5Robot):
 
         # always want to push down on where we placed
         self.push(place_pose, is_place_pt=True, force_ctrl=True)
+        # need to do this cause the overhead pose has a different rotation from the descend pose and we don't want to 
+        #rotate the gripper while it's on the channel 
+        self.rotate_pose90(place_overhead_pose)
         self.move_pose(place_overhead_pose, interp="tcp")
 
-    def push(self, pose, is_place_pt=False, force_ctrl=False):
+    def push(self, pose, is_place_pt=False, force_ctrl=True):
         if is_place_pt:
             # decrease height so that we can push down and 
             pose.translation[2] -= 0.02
@@ -85,22 +95,31 @@ class GasketRobot(UR5Robot):
             # time.sleep(3)
             # self.move_pose(self.get_pose(convert=True), convert=True, interp="tcp", vel=0.1, acc=0.5)
             # self.end_force_mode()
-            curr_pose = self.get_pose(False)
-            curr_pose[2] -= 0.05
-            self.descend_to_pose(curr_pose, False)
-
+            self.close_grippers()
+            self.descend_to_pose(pose, convert=True)
 
     def descend_to_pose(self, pose, convert=True, force_limit=50):
         if convert:
-            pose.translation[2] += 0.05
+            pose.translation[2] += 0.03
         else:
-            pose[2] += 0.05
-        
-        self.move_pose(pose, convert=convert)
+            pose[2] += 0.03
+        # pose.rotation = pose.rotation + R.from_euler("xyz",[0,0,-np.pi]).as_matrix()
+        pose.rotation = R.from_euler("xyz",[0,0,np.pi/2]).as_matrix()@pose.rotation
+        self.move_pose(pose, convert=convert, interp="tcp")
         time.sleep(0.5)
         prev_force = np.array(self.get_current_force()[:3])
         # self.force_mode(self.get_pose(False), [0,0,1,0,0,0], [0,0,10,0,0,0], 2, [1,1,1,1,1,1], damping=0.002)
         # self.force_mode(self.get_pose(convert=False),[0,1,1,0,0,0],[0,7,10,0,0,0],2,[0.05,1,0.2,0.05,0.05,0.05])
+        # start moving downwards, then measure the baseline force.
+        for i in range(10):
+            if convert:
+                pose.translation[2] -= 0.0001
+            else:
+                pose[2] -= 0.0001
+            self.servo_pose(pose, time=0.01, convert=convert)
+            time.sleep(0.01)
+        prev_force = np.array(self.get_current_force()[:3])
+
         while True:
             # print(np.array(self.get_current_force()[:3]))
             if convert:
@@ -114,6 +133,23 @@ class GasketRobot(UR5Robot):
                 break
         self.stop_joint()
 
+    def linear_push(self, start_pose, goal_pose):
+        self.close_grippers()
+        # want it rotated 90 degrees from the start pose 
+        # want these to be the same cause we don't want the gripper rotating while it's sliding
+        goal_pose.rotation = start_pose.rotation
+        # want it rotated 90 degrees from the start pose and descend to pose does that for us for the start pose
+        # but we need to explicitly set it for the goal pose
+        self.rotate_pose90(goal_pose)
+        # breakpoint()
+        self.descend_to_pose(start_pose)
+        self.force_mode(self.get_pose(convert=False),[0,0,1,0,0,0],[0,0,15,0,0,0],2,[0.05,1,0.2,0.05,0.05,0.05],damping=0.5)
+        self.move_pose(goal_pose, interp='tcp')
+        self.end_force_mode()
+    
+    def rotate_pose90(self,pose):
+        pose.rotation = R.from_euler("xyz",[0,0,np.pi/2]).as_matrix()@pose.rotation
+
 
 if __name__ == "__main__":
 
@@ -122,11 +158,13 @@ if __name__ == "__main__":
 
     ur = GasketRobot()    
     ur.set_playload(1)
+    print(ur.get_joints())
+    breakpoint()
     # ur.force_mode(ur.get_pose(convert=False),[0,1,1,0,0,0],[0,8,10,0,0,0],2,[0.05,1,0.2,0.05,0.05,0.05])
     # ur.force_mode(ur.get_pose(convert=False),[1,1,1,1,1,1],[0,0,0,0,0,0],2,[1,1,1,1,1,1], 0.002)
-    ur.force_mode(ur.get_pose(convert=False),[0,1,1,0,0,0],[0,7,10,0,0,0],2,[0.05,1,0.2,0.05,0.05,0.05])
-    angles = np.array([-30, -110, -102, -10, 121, 122])
-    ur.move_joint(angles * np.pi /180)
+    # ur.force_mode(ur.get_pose(convert=False),[0,1,1,0,0,0],[0,7,10,0,0,0],2,[0.05,1,0.2,0.05,0.05,0.05])
+    # angles = np.array([-30, -110, -102, -10, 121, 122])
+    # ur.move_joint(angles * np.pi /180)
     # ur.forceMode(ur.getActualTCPPose(),[0,1,1,0,0,0],[0,8,10,0,0,0],2,[0.05,1,0.2,0.05,0.05,0.05])
     
     # tsfm = ur.get_pose()
@@ -165,33 +203,3 @@ if __name__ == "__main__":
     #     ur.servo_joint(p)
     #     while time.time()-last_record < 0.002:
     #         pass 
-
-    positions = []
-    for x in range(560, 756,2):
-        y = (0.07*(x-560.13))**2 - 513
-        z = 171
-        # rx = 0.00478*x - 1.958
-        # ry = 0.00192*x - 4.1765
-        rx = 0
-        ry = np.pi
-        rz = 0
-        rot = R.from_euler("xyz", [rx,ry,rz]).as_matrix()
-        trans = [x/1000,y/1000,z/1000]
-        print("trans is this: ", trans)
-        print("rot is this: ", rot)
-        pose = RigidTransform(rotation=rot, translation=trans)
-        # pose = [x,y,z,rx,ry,rz]
-        positions.append(pose)
-
-    # breakpoint()
-    for pos in positions:
-        # print(ur.get_pose())
-        # ur.move_pose(pos)
-        last_record = time.time()
-        ur.move_pose(pos)
-        while time.time()-last_record < 0.002:
-            pass
-
-
-# 0.78, -3.03, 0.13
-# 0.18 -3.06 1.9

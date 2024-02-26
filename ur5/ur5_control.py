@@ -1,6 +1,8 @@
 from ur5py.ur5 import UR5Robot
 import numpy as np
-from shape_match import *
+# from shape_match import *
+from new_shape_match import get_channel
+from shape_match import get_cable, align_channel, get_closest_channel_endpoint
 from autolab_core import RigidTransform
 import pdb
 from real_sense_modules import *
@@ -8,7 +10,7 @@ from utils import *
 import argparse
 from gasketRobot import GasketRobot
 from scipy.spatial.transform import Rotation as R
-from resources import CROP_REGION, curved_template_mask, straight_template_mask, trapezoid_template_mask
+from resources import CROP_REGION, MIDPOINT_THRESHOLD, curved_template_mask, straight_template_mask, trapezoid_template_mask
 from calibration.image_robot import ImageRobot
 from zed_camera import ZedCamera
 
@@ -27,7 +29,7 @@ argparser = argparse.ArgumentParser()
 argparser.add_argument('--exp', type=str, default='no_ends_attached')
 # options for where to push on channel: 'unidirectional', 'golden', 'binary', 'slide'
 argparser.add_argument('--push_mode', type=str, default='unidirectional')
-# options for where to pick the cable at: 'unidirectional', 'golden', 'binary', 'slide'
+# options for where to pick the cable at: 'unidirectional', 'golden', 'binary'
 argparser.add_argument('--pick_mode', type=str, default='unidirectional')
 argparser.add_argument('--blur_radius', type=int, default=5)
 argparser.add_argument('--sigma', type=int, default=0)
@@ -36,16 +38,65 @@ argparser.add_argument('--dilate_size_rope', type=int, default=20)
 argparser.add_argument('--canny_threshold_channel', type=tuple, default=(100,255))
 argparser.add_argument('--canny_threshold_rope', type=tuple, default=(0,255))
 argparser.add_argument('--visualize', default=False, action='store_true')
-    
-    
+
+def push_down(sorted_push_idx):
+    robot.go_home()
+    rgb_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
+    cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
+    sorted_cable_points, sorted_channel_pts = get_sorted_pts(cable_endpoints, channel_endpoints, cable_skeleton)
+    for idx in sorted_push_idx:
+        # do i-1 cause i == 1 when we get into here
+        idx = math.floor(idx*len(sorted_channel_pts))
+        push_idx(sorted_channel_pts, idx) 
+
+def slide_curved(swapped_sorted_channel_pts, camCal, robot):
+    positions = []
+    robot.close_grippers()
+    for idx, pt in enumerate(swapped_sorted_channel_pts):
+        if idx % 10 != 0:
+            continue
+        # y = (0.07*(x-560.13))**2 - 513
+        z = 1/1000 #171/1000
+        # rx = 0.00478*x - 1.958
+        # ry = 0.00192*x - 4.1765
+        rx = 0
+        ry = np.pi
+        rz = 0
+        # original_point = [x,y,z,rx,ry,rz]
+        transformed_point = get_rw_pose(pt, swapped_sorted_channel_pts,15,0.1,camCal=camCal, is_channel_pt=True).translation
+        
+        #### NOTE: this is currrently hardcoded
+        transformed_point[2] = z
+        #######
+
+        # rotate by 90 so that gripper edge is perpendicular
+        rot = R.from_euler("xyz",[0,0,np.pi/2]).as_matrix()@R.from_euler("xyz", [rx,ry,rz]).as_matrix()
+        # trans = [x/1000,y/1000,z/1000]
+        # print("trans is this: ", trans)
+        # print("rot is this: ", rot)
+        pose = RigidTransform(rotation=rot, translation=transformed_point)
+        # pose = [x,y,z,rx,ry,rz]
+        positions.append(pose)
+
+    # breakpoint()
+    for pos in positions:
+        # print(ur.get_pose())
+        # ur.move_pose(pos)
+        last_record = time.time()
+        robot.move_pose(pos)
+        while time.time()-last_record < 0.002:
+            pass 
+
 def detect_cable(rgb_img, args):
     # Detecting the cable
     cable_cnt, cable_mask_hollow  = get_cable(img = rgb_img, blur_radius=args.blur_radius, sigma=args.sigma, dilate_size=args.dilate_size_rope, 
                   canny_threshold=args.canny_threshold_rope, viz=args.visualize)
+    # breakpoint()
+    # cable_cnt, _ = get_cable(rgb_img)
         
     cable_cnt = cable_cnt + np.array([CROP_REGION[2], CROP_REGION[0]])
     cable_mask_binary = np.zeros(rgb_img.shape, np.uint8)
-    cv.drawContours(cable_mask_binary, [cable_cnt], -1, (255,255,255), -1)
+    cv2.drawContours(cable_mask_binary, [cable_cnt], -1, (255,255,255), -1)
     cable_mask_binary = (cable_mask_binary.sum(axis=2)/255).astype('uint8')
 
     cable_skeleton = skeletonize(cable_mask_binary)
@@ -62,9 +113,10 @@ def detect_cable(rgb_img, args):
 
 def detect_channel(rgb_img, cable_mask_binary, args):
     # Detecting the channel
-    matched_template, matched_results, channel_cnt, _ = get_channel(img = rgb_img, cable_mask=cable_mask_binary, blur_radius=args.blur_radius, sigma=args.sigma, 
-                                                     dilate_size=args.dilate_size_channel, canny_threshold=args.canny_threshold_channel, viz=args.visualize)
-    
+    # matched_template, matched_results, channel_cnt, _ = get_channel(img = rgb_img, cable_mask=cable_mask_binary, blur_radius=args.blur_radius, sigma=args.sigma, 
+    #                                                  dilate_size=args.dilate_size_channel, canny_threshold=args.canny_threshold_channel, viz=args.visualize)
+    matched_template, matched_results, channel_cnt = get_channel(rgb_img)
+
     if matched_template == 'curved':
         template_mask = curved_template_mask
     elif matched_template == 'straight':
@@ -83,6 +135,22 @@ def detect_channel(rgb_img, cable_mask_binary, args):
     # plt.imshow(aligned_channel_mask, alpha=0.5)
     # plt.show()
 
+    plt.imshow(cv2.drawContours(rgb_img.copy(), channel_cnt + np.array([CROP_REGION[2], CROP_REGION[0]]), -1, 255, 3))
+    plt.title('check channel contour dimensions')
+    plt.show()
+
+    
+    # plt.imshow(rgb_img)
+    # plt.imshow(aligned_channel_mask, alpha=0.7)
+    # plt.show()
+    
+    # do this so that we have a more accurate reading of where the channel actually is 
+    channel_cnt_mask = np.zeros_like(rgb_img, dtype=np.uint8)
+    _ = cv2.drawContours(channel_cnt_mask, [channel_cnt + np.array([CROP_REGION[2], CROP_REGION[0]])],-1, [255,255,255], -1)
+    # cv2.drawContours(image=mask,contours=channel_cnt + np.array([CROP_REGION[2], CROP_REGION[0]]),contourIdx=-1,color=(0,255,255),thickness=cv2.FILLED)
+
+    print(aligned_channel_mask)
+
     # skeletonizing the channel
     channel_skeleton = skeletonize(aligned_channel_mask)
     # hough_output = probabilistic_hough_line(channel_skeleton, line_length=10)
@@ -91,14 +159,14 @@ def detect_channel(rgb_img, cable_mask_binary, args):
     # temp = np.zeros_like(channel_skeleton)
     # temp[y,x] = 1
     # channel_skeleton = temp
-    # plt.imshow(rgb_img)
-    # plt.imshow(channel_skeleton, alpha=0.5, cmap='jet')
-    # plt.show()
+    plt.imshow(rgb_img)
+    plt.imshow(channel_skeleton, alpha=0.5, cmap='jet')
+    plt.show()
     #getting the length and endpoints of the channel
     channel_length, channel_endpoints = find_length_and_endpoints(channel_skeleton)
     if len(channel_endpoints) == 1:
         print("We have a loop!")
-    return channel_skeleton, channel_length, channel_endpoints, matched_template
+    return channel_skeleton, channel_length, channel_endpoints, matched_template, aligned_channel_mask, channel_cnt_mask
 
 def find_closest_point(point_list, point_b):
     # Convert the input lists to NumPy arrays for easier computation
@@ -157,7 +225,6 @@ def find_nth_nearest_point(point, sorted_points, given_n):
     #     return sorted_points[n - 1]
     # elif point == sorted_points[-1]:
     #     return sorted_points[-n]
-    breakpoint()
     idx = sorted_points.index(point)
 
     behind_idx = np.clip(idx - given_n, 0, len(sorted_points)-1)
@@ -180,7 +247,9 @@ def get_rotation(point1, point2):
     cos_theta = np.dot(direction, reference_direction)
     sin_theta = np.sqrt(1 - cos_theta**2)
     dz = np.arctan2(sin_theta, cos_theta)
-    euler = np.array([-np.pi, 0, dz])
+    dz1 = np.arctan2(direction[1], direction[0])
+    # breakpoint()
+    euler = np.array([-np.pi, 0, dz1])
     rot_matrix = R.from_euler("xyz", euler).as_matrix()
     return rot_matrix
 
@@ -191,13 +260,11 @@ def get_rw_pose(orig_pt, sorted_pixels, n, ratio, camCal, is_channel_pt, use_dep
     behind_idx, infront_idx = find_nth_nearest_point(orig_pt, sorted_pixels, n)
     behind_pt = sorted_pixels[behind_idx]
     infront_pt = sorted_pixels[infront_idx]
-    plt.scatter(x=behind_pt[1], y=behind_pt[0], c='r')
-    plt.scatter(x=infront_pt[1], y=infront_pt[0], c='b')
-    plt.imshow(rgb_img)
-    plt.show()
+    # plt.scatter(x=behind_pt[0], y=behind_pt[1], c='m')
+    # plt.scatter(x=infront_pt[0], y=infront_pt[1], c='y')
+    # plt.imshow(rgb_img)
+    # plt.show()
 
-
-    breakpoint()
     # offset_point = find_nth_nearest_point(orig_pt, sorted_pixels, int(len(sorted_pixels)*ratio))
     
     # needs to be done since the point was relative to the entire view of the camera but our model is trained on points defined only in the cropped frame of the image
@@ -215,10 +282,10 @@ def get_rw_pose(orig_pt, sorted_pixels, n, ratio, camCal, is_channel_pt, use_dep
     # want this z height to have the gripper when closed be just barely above the table
     # will need to tune!
     if not use_depth:
-        hardcoded_z = -15
+        hardcoded_z = -18  # was -15
         # if we want a point on the channel need to account for the height of the template
         if is_channel_pt:
-            hardcoded_z += TEMPLATE_HEIGHT[matched_template]
+            hardcoded_z += TEMPLATE_HEIGHT[matched_template] * 1000 #  template z is in cm for some reason
         orig_rw = np.array([orig_rw_xy[0], orig_rw_xy[1],hardcoded_z/1000])
     else:
         print("haven't implemented using depth for pick/place!")
@@ -259,6 +326,7 @@ def no_ends_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camC
     plt.scatter(x=pick_pt[1], y=pick_pt[0], c='r')
     plt.scatter(x=place_pt[1], y=place_pt[0], c='b')
     plt.imshow(rgb_img)
+    plt.title("pick place pts")
     plt.show()
 
     # needs to be swapped as this is how it is expected for the robot
@@ -269,7 +337,7 @@ def no_ends_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camC
     place_pose_swap = get_rw_pose((place_pt[1], place_pt[0]), swapped_sorted_channel_pts, 15, 0.1, camCal, is_channel_pt=True)
 
     robot.pick_and_place(pick_pose_swap, place_pose_swap)
-    return swapped_sorted_cable_pts, swapped_sorted_channel_pts
+    return swapped_sorted_cable_pts, swapped_sorted_channel_pts, place_pose_swap
     # robot.move_pose(pick_pose)
     
     # place_pose = get_rw_pose(place_pt, sorted_channel_pts, 20, 0.1, camCal)
@@ -283,6 +351,9 @@ def no_ends_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camC
     # robot.push(transformed_channel_end, rotation)
     # robot.go_home()
     # robot.open_grippers()
+
+def place_halfway(cable_mask_binary, cable_endpoints, channel_endpoints, camCal, idx):
+    pick_and_place_idx(cable_mask_binary, cable_endpoints, channel_endpoints, camCal, idx)
 
 def one_end_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camCal, second_endpt_side):
     cable_skeleton = skeletonize(cable_mask_binary)
@@ -299,14 +370,12 @@ def one_end_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camC
     plt.imshow(rgb_img)
     plt.show()
 
-    breakpoint()
     plt.imshow(rgb_img)
     plt.imshow(cable_skeleton, alpha=0.7)
     plt.show()
 
     # we sort the points on channel and cable to get a relation between the points
     sorted_cable_pts, sorted_channel_pts = get_sorted_pts(cable_endpoints, channel_endpoints, cable_skeleton)
-    breakpoint()
 
     # now we want the last endpoints to pick and place
     if second_endpt_side == 'right':
@@ -339,8 +408,12 @@ def one_end_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camC
     swapped_sorted_cable_pts = [(pt[1], pt[0]) for pt in sorted_cable_pts]
     swapped_sorted_channel_pts = [(pt[1], pt[0]) for pt in sorted_channel_pts]
     pick_pose_swap = get_rw_pose((pick_pt[1], pick_pt[0]), swapped_sorted_cable_pts, 20, 0.1, camCal, False)
-    place_pose_swap = get_rw_pose((place_pt[1], place_pt[0]), swapped_sorted_channel_pts, 20, 0.1, camCal, False)
+    place_pose_swap = get_rw_pose((place_pt[1], place_pt[0]), swapped_sorted_channel_pts, 20, 0.1, camCal, True)
     robot.pick_and_place(pick_pose_swap, place_pose_swap)
+
+    # this is the pose of the goal position
+    return place_pose_swap
+
     slide_goal_pt = sorted_channel_pts[0]
     slide_goal_pose = get_rw_pose((slide_goal_pt[1], slide_goal_pt[0]), swapped_sorted_channel_pts, 20, 0.1, camCal, False)
     
@@ -364,14 +437,13 @@ def attach_intermediary_parts(cable_mask_binary, cable_endpoints, channel_endpoi
         plt.imshow(rgb_img)
         plt.show()
 
-        breakpoint()
+        
         plt.imshow(rgb_img)
         plt.imshow(cable_skeleton, alpha=0.7)
         plt.show()
 
         # we sort the points on channel and cable to get a relation between the points
         sorted_cable_pts, sorted_channel_pts = get_sorted_pts(cable_endpoints, channel_endpoints, cable_skeleton)
-        breakpoint()
 
         # now we want the last endpoints to pick and place
         if second_endpt_side == 'right':
@@ -452,18 +524,40 @@ def attach_intermediary_parts(cable_mask_binary, cable_endpoints, channel_endpoi
     
     # should actually slide across the straight channel (hopefully)
     # robot.push(slide_goal_pose, is_place_pt=True, force_ctrl=True)
-        
-def pick_and_place_idx(cable_mask_binary, cable_endpoints, channel_endpoints, camCal, idx):
-    cable_skeleton = skeletonize(cable_mask_binary)
-    cable_length, cable_endpoints = find_length_and_endpoints(cable_skeleton)
-    plt.scatter(x=[i[1] for i in cable_endpoints], y=[i[0] for i in cable_endpoints])
+
+def push_idx(sorted_channel_pts, idx):
+    if idx >= len(sorted_channel_pts):
+        idx = len(sorted_channel_pts) - 1
+    push_pt = sorted_channel_pts[idx]
+    
+    plt.scatter(x=push_pt[1], y=push_pt[0], c='r')
+    plt.title("Push Points")
     plt.imshow(rgb_img)
     plt.show()
 
-    breakpoint()
-    plt.imshow(rgb_img)
-    plt.imshow(cable_skeleton, alpha=0.7)
-    plt.show()
+    # needs to be swapped as this is how it is expected for the robot
+    swapped_sorted_channel_pts = [(pt[1], pt[0]) for pt in sorted_channel_pts]
+
+    push_pose_swap = get_rw_pose((push_pt[1], push_pt[0]), swapped_sorted_channel_pts, 15, 0.1, camCal, is_channel_pt=True)
+    push_above_translation = push_pose_swap.translation
+    push_above_translation[2] += 0.02
+    push_above_pose = RigidTransform(push_pose_swap.rotation, push_above_translation)
+    robot.rotate_pose90(push_above_pose)
+
+    robot.push(push_pose_swap)
+    robot.move_pose(push_above_pose, interp="tcp")
+
+    
+def pick_and_place_idx(cable_mask_binary, cable_endpoints, channel_endpoints, camCal, idx, channel_mask=None):
+    cable_skeleton = skeletonize(cable_mask_binary)
+    cable_length, cable_endpoints = find_length_and_endpoints(cable_skeleton)
+    # plt.scatter(x=[i[1] for i in cable_endpoints], y=[i[0] for i in cable_endpoints])
+    # plt.imshow(rgb_img)
+    # plt.show()
+
+    # plt.imshow(rgb_img)
+    # plt.imshow(cable_skeleton, alpha=0.7)
+    # plt.show()
 
     # we sort the points on channel and cable to get a relation between the points
     sorted_cable_pts, sorted_channel_pts = get_sorted_pts(cable_endpoints, channel_endpoints, cable_skeleton)
@@ -479,11 +573,19 @@ def pick_and_place_idx(cable_mask_binary, cable_endpoints, channel_endpoints, ca
     # needs to be swapped as this is how it is expected for the robot
     swapped_sorted_cable_pts = [(pt[1], pt[0]) for pt in sorted_cable_pts]
     swapped_sorted_channel_pts = [(pt[1], pt[0]) for pt in sorted_channel_pts]
-    pick_pose_swap = get_rw_pose((pick_pt[1], pick_pt[0]), swapped_sorted_cable_pts, 15, 0.1, camCal, is_channel_pt=False)
+    
+    if channel_mask is not None and channel_mask[pick_pt[0]][pick_pt[1]][0] != 0:
+        on_channel = True
+    else:
+        on_channel = False
+
+    pick_pose_swap = get_rw_pose((pick_pt[1], pick_pt[0]), swapped_sorted_cable_pts, 15, 0.1, camCal, is_channel_pt=on_channel)
     # place_pose_swap = get_rw_pose((place_pt[1], place_pt[0]), swapped_sorted_channel_pts, 20, 0.1, camCal, is_channel_pt=True)
     place_pose_swap = get_rw_pose((place_pt[1], place_pt[0]), swapped_sorted_channel_pts, 15, 0.1, camCal, is_channel_pt=True)
 
-    robot.pick_and_place(pick_pose_swap, place_pose_swap)
+    robot.pick_and_place(pick_pose_swap, place_pose_swap, on_channel)
+
+    return place_pose_swap
 
 
 # NOTE: this function is busted, idk why
@@ -574,12 +676,20 @@ TOTAL_PICK_PLACE = 5
 
 
 if __name__=='__main__':
+    # # loads model for camera to real world
+    # camCal = ImageRobot()
+    # # # Sets up the realsense and gets us an image
+    # pipeline, colorizer, align, depth_scale = setup_rs_camera()
+    # time.sleep(1)
+    # rgb_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
+    # plt.imsave('test_images/trapezoid_channel_1.png', rgb_img)
     args = argparser.parse_args()
     PUSH_MODE = args.push_mode
     PICK_MODE = args.pick_mode
     EXP_MODE = args.exp
     robot = GasketRobot()
     robot.set_playload(1)
+    robot.end_force_mode()
     # robot.force_mode(robot.get_pose(convert=False),[1,1,1,1,1,1],[0,0,0,0,0,0],2,[1,1,1,1,1,1], 0.1)
     robot.go_home()
     
@@ -612,27 +722,48 @@ if __name__=='__main__':
     plt.imshow(rgb_img)
     plt.show()
     
-    NUM_BINARY = 4
+    # approximately how many points along the channel we want to move and push to
+    NUM_PTS = 4
 
-    search_ratio = 1/2
-    # getting all of the ratios for a necessary binary search
-    search_idx = search(search_ratio, search_ratio/NUM_BINARY)
-    breakpoint()
-    sorted_search_idx = [search_idx[0]]
-    stride = round((len(search_idx)-1)/2)
-    for i in range(1,round(len(search_idx)/2)):
-        sorted_search_idx.append(search_idx[i])
-        sorted_search_idx.append(search_idx[i+stride])
+    def get_search_idx(search_ratio):
+        search_idx = search(search_ratio, search_ratio/NUM_PTS)
+        sorted_search_idx = [search_idx[0]]
+        stride = round((len(search_idx)-1)/2)
+        for i in range(1,round(len(search_idx)/2)):
+            sorted_search_idx.append(search_idx[i])
+            sorted_search_idx.append(search_idx[i+stride])
+        return sorted_search_idx
 
-    for i in range(1, NUM_BINARY+1):
-        if i == 1:
-            # gets initial state of cable and channel
+    if PICK_MODE == "binary":
+        search_ratio = 1/2
+        sorted_search_idx = get_search_idx(search_ratio)
+    elif PICK_MODE == "golden":
+        search_ratio = 0.81
+        sorted_search_idx = get_search_idx(search_ratio)
+    elif PICK_MODE == "unidirectional":
+        sorted_search_idx = [(1/NUM_PTS)*i for i in range(NUM_PTS)]
+
+
+    # getting all ofNUM_BINARY the ratios for a necessary binary search
+    
+
+    ### PICK AND PLACE ########
+    for i in range(0, NUM_PTS+1):
+        if i==0:
             cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
-            channel_skeleton, channel_length, channel_endpoints, matched_template = detect_channel(rgb_img, cable_mask_binary, args)
+            channel_skeleton, channel_length, channel_endpoints, matched_template, aligned_channel_mask, channel_cnt_mask = detect_channel(rgb_img, cable_mask_binary, args)
+            idx_init = math.floor(0.5*cable_length)
+            slide_mid_pose = pick_and_place_idx(cable_mask_binary, cable_endpoints, channel_endpoints, camCal, idx_init)
+        elif i == 1:
+            # gets initial state of cable and channel
+            robot.go_home()
+            rgb_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
+            cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
+            # channel_skeleton, channel_length, channel_endpoints, matched_template = detect_channel(rgb_img, cable_mask_binary, args)
 
             # performs the experiment given no ends are attached to the channel
             if EXP_MODE == 'no_ends_attached':
-                swapped_sorted_cable_pts, swapped_sorted_channel_pts = no_ends_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camCal)
+                swapped_sorted_cable_pts, swapped_sorted_channel_pts, slide_start_pose = no_ends_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camCal)
             
             # even if we are doing no_ends_attached we simply 
             # need to attach one end then we can run the program as if it was always just one end attached        
@@ -648,24 +779,74 @@ if __name__=='__main__':
             ### NOTE: TAKE NEW PHOTO SINCE CABLE END MAY MOVE AFTER FIRST POINT INSERTION
             robot.go_home()
             ### END NOTE
-
+            
             rgb_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
             cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
-            one_end_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camCal, second_endpt_side)
+            slide_end_pose = one_end_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camCal, second_endpt_side)
         else:
-            breakpoint()
             robot.go_home()
             rgb_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
             cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
             # do i-1 cause i == 1 when we get into here
-            idx = math.floor(sorted_search_idx[i-1]*cable_length)
-            pick_and_place_idx(cable_mask_binary, cable_endpoints, channel_endpoints, camCal, idx)
+            idx = math.floor(sorted_search_idx[i-2]*cable_length)
+            pick_and_place_idx(cable_mask_binary, cable_endpoints, channel_endpoints, camCal, idx, channel_cnt_mask)
+            robot.gripper.open()
+    
+    ### SLIDING/PUSHING ####
+    robot.go_home()
+    rgb_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
+    cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
 
+    NUM_PTS_PUSH = 8
 
-            # swapped_sorted_cable_pts, swapped_sorted_channel_pts = attach_intermediary_parts(cable_mask_binary, cable_endpoints, channel_endpoints, 
-            #                                                                                 camCal, iter=i, second_endpt_side=None, second=False)
-            # existing_pick_pt = swapped_sorted_cable_pts[0]
-            # second_endpt_side = 'right' if existing_pick_pt[0] < 555 else 'left'
-            # rgb_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
-            # cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
-            # attach_intermediary_parts(cable_mask_binary, cable_endpoints, channel_endpoints, camCal, iter=i, second_endpt_side=second_endpt_side, second=True)
+    if PUSH_MODE == "slide":
+        sorted_cable_points, sorted_channel_pts = get_sorted_pts(cable_endpoints, channel_endpoints, cable_skeleton)
+        cable_midpt = sorted_cable_points[len(sorted_cable_points) // 2]
+        channel_midpt = sorted_channel_pts[len(sorted_channel_pts) // 2]
+        dist = np.linalg.norm(np.array(cable_midpt) - np.array(channel_midpt))
+
+        if dist > MIDPOINT_THRESHOLD:
+            midpt_idx = len(sorted_cable_points) // 2
+            pick_and_place_idx(cable_mask_binary, cable_endpoints, channel_endpoints, camCal, midpt_idx, channel_cnt_mask)
+
+    if PUSH_MODE == "binary":
+        search_ratio = 1/2
+        sorted_push_idx = get_search_idx(search_ratio)
+    elif PUSH_MODE == "golden":
+        search_ratio = 0.81
+        sorted_push_idx = get_search_idx(search_ratio)
+    elif PUSH_MODE == "unidirectional":
+        sorted_push_idx = [(1/NUM_PTS_PUSH)*i for i in range(NUM_PTS_PUSH+1)]
+
+    if matched_template == "curved":
+        if PUSH_MODE == "slide":
+            # NOTE: TRY PRESSING DOWN FIRST TO AVOID SLIDING THE CABLE OUT
+            NUM_PTS_PRESS = 12
+            sorted_push_idx = [(1/NUM_PTS_PRESS)*i for i in range(NUM_PTS_PRESS+1)]
+            push_down(sorted_push_idx)
+
+            midpt_idx = len(swapped_sorted_channel_pts) // 2
+            slide_curved(swapped_sorted_channel_pts[midpt_idx:], camCal, robot)
+            robot.go_home()
+            slide_curved(swapped_sorted_channel_pts[:midpt_idx][::-1], camCal, robot)
+        # means that we should just be pushing down normally
+        else:
+            push_down(sorted_push_idx)
+    elif matched_template == "straight":
+        if PUSH_MODE == "slide":
+            # robot.linear_push(slide_start_pose, slide_end_pose)
+            robot.linear_push(slide_mid_pose, slide_end_pose)
+            robot.go_home()
+            robot.linear_push(slide_mid_pose, slide_start_pose)
+        # means that we should just be pushing down normally
+        else:
+            push_down(sorted_push_idx)
+    elif matched_template == 'trapezoid':
+        if PUSH_MODE == "slide":
+            # probably want to do something like 4 linear slides or something
+            pass
+        # means that we should just be pushing down normally
+        else:
+            push_down(sorted_push_idx)
+
+robot.go_home()

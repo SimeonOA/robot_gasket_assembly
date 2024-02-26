@@ -112,6 +112,7 @@ def get_channel_rope_cnts(crops, cnt_crop_frame, sorted_cnts, blur_radius=5, sig
         if idx >= 5:
             break
         mask = np.zeros_like(crop, dtype=np.uint8)
+        breakpoint()
         _ = cv.drawContours(mask, [cnt],-1, 255, -1)
         # plt.imshow(mask, cmap='gray')
         # plt.show()

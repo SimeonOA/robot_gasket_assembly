@@ -38,7 +38,7 @@ phMin = psMin = pvMin = phMax = psMax = pvMax = 0
 # img = cv2.imread(f"/home/r2d2/Robot-Cable-Insertion_TRI-Demo/problem_segments_im/rope_mask_channel_error.png")
 
 # img = cv2.imread('/home/lawrence/Documents/bag/baggingbot/data_collection/data/raw_data/test/image_regular_179.png')
-img_path = "/home/simeonoa/robot_cable_insertion/ur5/calibration/ur5_workspace_12_05_23.png"
+img_path = "/home/gasket/robot_cable_insertion/ur5/images/curved_channel_right_direction_cropped.png"
 # img_path = '/home/r2d2/Robot-Cable-Insertion_TRI-Demo/problem_segments_im/rope_mask1.png'
 img = cv2.imread(img_path)
 output = img

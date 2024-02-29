@@ -6,7 +6,8 @@ import numpy as np
 # CROP_REGION = [120, 360, 130, 460]
 # only works if you're using the original 1280 by 720 image
 # CROP_REGION = [136, 600, 321, 940] 
-CROP_REGION = [64, 600, 189, 922]
+CROP_REGION = [250, 843, 286, 1122]
+# CROP_REGION = [193, 508, 308, 723]
 # curved_template_mask = cv2.imread('template_masks/processed_new_curved_mask.jpg')
 # # curved_template_mask = cv2.imread('template_masks/master_curved_fill_template.png')
 # straight_template_mask = cv2.imread('template_masks/master_straight_channel_template.png')

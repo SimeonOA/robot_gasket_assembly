@@ -99,6 +99,7 @@ class GasketRobot(UR5Robot):
             self.descend_to_pose(pose, convert=True)
 
     def descend_to_pose(self, pose, convert=True, force_limit=50):
+        # breakpoint()
         if convert:
             pose.translation[2] += 0.03
         else:
@@ -111,25 +112,33 @@ class GasketRobot(UR5Robot):
         # self.force_mode(self.get_pose(False), [0,0,1,0,0,0], [0,0,10,0,0,0], 2, [1,1,1,1,1,1], damping=0.002)
         # self.force_mode(self.get_pose(convert=False),[0,1,1,0,0,0],[0,7,10,0,0,0],2,[0.05,1,0.2,0.05,0.05,0.05])
         # start moving downwards, then measure the baseline force.
-        for i in range(10):
+        prev_force = np.linalg.norm(np.array(self.get_current_force()[:3]))
+        for i in range(9):
             if convert:
                 pose.translation[2] -= 0.0001
             else:
                 pose[2] -= 0.0001
             self.servo_pose(pose, time=0.01, convert=convert)
             time.sleep(0.01)
-        prev_force = np.array(self.get_current_force()[:3])
+            prev_force += np.linalg.norm(np.array(self.get_current_force()[:3]))
+        prev_force /= 10
 
+        current_force = []
         while True:
             # print(np.array(self.get_current_force()[:3]))
+            print(f"Descending {np.linalg.norm(np.array(self.get_current_force()[:3]))}")
             if convert:
                 pose.translation[2] -= 0.0001
             else:
                 pose[2] -= 0.0001
             self.servo_pose(pose, time=0.01, convert=convert)
             time.sleep(0.01)
-            diff = np.linalg.norm(np.array(self.get_current_force()[:3]) - prev_force)
-            if diff > force_limit:
+            current_force.append(np.linalg.norm(np.array(self.get_current_force()[:3])))
+            if len(current_force) > 4:
+                current_force = current_force[1:]
+            if np.average(current_force) > force_limit:
+                print("Over threshold, stopping push. Forces:")
+                print(current_force)
                 break
         self.stop_joint()
 

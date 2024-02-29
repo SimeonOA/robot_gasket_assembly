@@ -13,9 +13,10 @@ from PIL import Image
 from franka.sensing.utils_binary import skeletonize_img, find_length_and_endpoints, sort_skeleton_pts
 from franka.sensing.depth_sensing import parseArg, get_rgb_get_depth
 from resources import CROP_REGION, curved_template_mask, straight_template_mask, trapezoid_template_mask
+from real_sense_modules import *
 
 argparser = argparse.ArgumentParser()
-argparser.add_argument('--img_path', type=str, default='imgs/curved7.png')
+argparser.add_argument('--img_path', type=str, default='images/cable_detection.png')
 argparser.add_argument('--blur_radius', type=int, default=5)
 argparser.add_argument('--sigma', type=int, default=0)
 argparser.add_argument('--dilate_size_channel', type=int, default=2)
@@ -137,9 +138,9 @@ def get_cable(img = None, img_path=None, blur_radius=5, sigma=0, dilate_size=10,
         plt.imshow(orig_gray_img)
         plt.title('cropped image')
         plt.show()
-        gray_img = cv.threshold(orig_gray_img.copy(), 200, 255, cv.THRESH_BINARY_INV)[1]
-        # plt.imshow(gray_img)
-        # plt.show()
+        gray_img = cv.threshold(orig_gray_img.copy(), 240, 255, cv.THRESH_BINARY_INV)[1]
+        plt.imshow(gray_img)
+        plt.show()
     elif img_path is None:
         if DEPTH_IMG is None or RGB_IMG is None:
             _, rgb_img = get_rgb_get_depth()
@@ -553,13 +554,13 @@ def align_channel(template_mask, matched_results, img, matched_cnt, matched_temp
 
     best_template = best_fit_template(all_masks, img, matched_cnt)
 
-    # plt.imshow(best_template)
-    # plt.imshow(img, alpha=0.5)
-    # plt.scatter(center[0]+CROP_REGION[2], center[1]+CROP_REGION[0], c='r')
-    # plt.title('Best template')
-    # plt.show()
+    plt.imshow(best_template)
+    plt.imshow(img, alpha=0.5)
+    plt.scatter(center[0]+CROP_REGION[2], center[1]+CROP_REGION[0], c='r')
+    plt.title('Best template')
+    plt.show()
     
-    return best_fit_template(all_masks, img, matched_cnt)
+    return best_template #best_fit_template(all_masks, img, matched_cnt)
 
 
 def get_true_center_curved_bbox(curved_bbox, gray_img):

@@ -21,7 +21,6 @@ from multiprocessing import Queue, Process
 from random import shuffle
 import math
 import matplotlib.pyplot as plt
-from skimage.morphology import skeletonize
 from sklearn.linear_model import RANSACRegressor
 import pyzed.sl as sl
 

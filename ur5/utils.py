@@ -71,6 +71,20 @@ def get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth):
     # rgb_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
     return rgb_img 
 
+def get_corners(skeleton_img):
+    # Convert to grayscale
+    gray = cv2.cvtColor(skeleton_img, cv2.COLOR_BGR2GRAY)
+
+    # Apply a threshold if your mask isn't binary
+    _, mask = cv2.threshold(gray, 10, 255, cv2.THRESH_BINARY)
+
+    # Find corners
+    corners = cv2.goodFeaturesToTrack(mask, maxCorners=4, qualityLevel=0.01, minDistance=100)
+
+    # Convert the corners to integers
+    corners = np.int0(corners)
+
+    return corners
 def sort_skeleton_pts(skeleton_img, endpoint):
     NEIGHS = [(-1, 0), (1, 0), (0, 1), (0, -1), (-1,-1), (-1,1), (1,-1),(1,1)]
     visited = set()

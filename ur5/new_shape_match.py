@@ -49,8 +49,8 @@ def post_process_mask(binary_map):
         if areas[i] >= 8000:   #keep
             result[labels == i + 1] = val
     
-    plt.imshow(result, cmap='gray')
-    plt.show()
+    # plt.imshow(result, cmap='gray')
+    # plt.show()
 
     return result
 
@@ -70,9 +70,9 @@ def get_cable(image):
     best_mask = None
     for i, cnt in enumerate(best_cnts):
         cnt_rgb = cnt + np.array([CROP_REGION[2], CROP_REGION[0]])
-        plt.imshow(cv2.drawContours(image.copy(), [cnt_rgb], -1, 255, 3))
-        plt.title('check cable contour dimensions')
-        plt.show()
+        # plt.imshow(cv2.drawContours(image.copy(), [cnt_rgb], -1, 255, 3))
+        # plt.title('check cable contour dimensions')
+        # plt.show()
         mask = np.zeros_like(crop_image, dtype=np.uint8)
         _ = cv2.drawContours(mask, [cnt], -1, 255, 3)
         mask = mask.sum(axis=-1)
@@ -126,8 +126,8 @@ def get_channel(image):
             best_cnt = cnt
             min_cnt_idx = i
             max_channel_density = channel_density
-        plt.imshow(cv2.drawContours(image.copy(), [box_rgb], -1, 255, 3))
-        plt.title('check channel contour dimensions in get_channel')
-        plt.show()
+        # plt.imshow(cv2.drawContours(image.copy(), [box_rgb], -1, 255, 3))
+        # plt.title('check channel contour dimensions in get_channel')
+        # plt.show()
     
     return matched_template, matched_results, best_cnt

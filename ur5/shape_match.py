@@ -12,7 +12,7 @@ from skimage.transform import probabilistic_hough_line
 from PIL import Image
 from franka.sensing.utils_binary import skeletonize_img, find_length_and_endpoints, sort_skeleton_pts
 from franka.sensing.depth_sensing import parseArg, get_rgb_get_depth
-from resources import CROP_REGION, curved_template_mask, straight_template_mask, trapezoid_template_mask
+from resources import CROP_REGION, curved_template_mask, straight_template_mask, trapezoid_template_mask, straight_template_mask_align
 from real_sense_modules import *
 
 argparser = argparse.ArgumentParser()
@@ -52,13 +52,13 @@ def make_img_gray(img_path, img = None):
         img = cv.imread(img_path)
     # orig_img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
     orig_img = img
-    plt.imshow(orig_img)
-    plt.title('original image')
-    plt.show()
+    # plt.imshow(orig_img)
+    # plt.title('original image')
+    # plt.show()
     crop_img = orig_img[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
-    plt.imshow(crop_img)
-    plt.title('cropped image')
-    plt.show()
+    # plt.imshow(crop_img)
+    # plt.title('cropped image')
+    # plt.show()
     # ## REMOVE GLARE
     # seed = (10, 10)  # Use the top left corner as a "background" seed color (assume pixel [10,10] is not in an object).
     # # Use floodFill for filling the background with black color
@@ -135,12 +135,12 @@ def get_cable(img = None, img_path=None, blur_radius=5, sigma=0, dilate_size=10,
         # plt.imshow(crop_img)
         # plt.show()
         orig_gray_img = cv.cvtColor(crop_img, cv.COLOR_RGB2GRAY)
-        plt.imshow(orig_gray_img)
-        plt.title('cropped image')
-        plt.show()
+        # plt.imshow(orig_gray_img)
+        # plt.title('cropped image')
+        # plt.show()
         gray_img = cv.threshold(orig_gray_img.copy(), 240, 255, cv.THRESH_BINARY_INV)[1]
-        plt.imshow(gray_img)
-        plt.show()
+        # plt.imshow(gray_img)
+        # plt.show()
     elif img_path is None:
         if DEPTH_IMG is None or RGB_IMG is None:
             _, rgb_img = get_rgb_get_depth()
@@ -149,14 +149,14 @@ def get_cable(img = None, img_path=None, blur_radius=5, sigma=0, dilate_size=10,
         rgb_img = rgb_img[:,:,:3]
         rgb_img = cv.cvtColor(rgb_img, cv.COLOR_BGR2RGB)
         crop_img = rgb_img[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
-        plt.imshowplt.imshow(crop_img)
-        plt.show()
+        # plt.imshowplt.imshow(crop_img)
+        # plt.show()
         gray_img = cv.cvtColor(crop_img, cv.COLOR_RGB2GRAY)
-        plt.imshow(gray_img, cmap='gray')
-        plt.show()
+        # plt.imshow(gray_img, cmap='gray')
+        # plt.show()
         gray_img = cv.threshold(gray_img.copy(), 250, 255, cv.THRESH_BINARY)[1]
-        plt.imshow(gray_img, cmap='gray')
-        plt.show()
+        # plt.imshow(gray_img, cmap='gray')
+        # plt.show()
     else:
         gray_img, rgb_img = make_img_gray(img_path)
     
@@ -166,9 +166,9 @@ def get_cable(img = None, img_path=None, blur_radius=5, sigma=0, dilate_size=10,
     best_mask = None
     for i, cnt in enumerate(best_cnts):
         cnt_rgb = cnt + np.array([CROP_REGION[2], CROP_REGION[0]])
-        plt.imshow(cv.drawContours(rgb_img.copy(), [cnt_rgb], -1, 255, 3))
-        plt.title('check cable contour dimensions')
-        plt.show()
+        # plt.imshow(cv.drawContours(rgb_img.copy(), [cnt_rgb], -1, 255, 3))
+        # plt.title('check cable contour dimensions')
+        # plt.show()
         print(get_bbox(cnt))
         mask = np.zeros_like(crop_img, dtype=np.uint8)
         _ = cv.drawContours(mask, [cnt], -1, 255, 3)
@@ -189,11 +189,11 @@ def get_channel( img=None,
         # gray_img, crop_img  = make_img_gray(None, img)
         crop_img = rgb_img[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
         orig_gray_img = cv.cvtColor(crop_img, cv.COLOR_RGB2GRAY)
-        plt.imshow(orig_gray_img)
-        plt.show()
+        # plt.imshow(orig_gray_img)
+        # plt.show()
         gray_img = cv.threshold(orig_gray_img.copy(), 108, 255, cv.THRESH_BINARY_INV)[1]
-        plt.imshow(gray_img)
-        plt.show()
+        # plt.imshow(gray_img)
+        # plt.show()
 
     elif img_path is None:
         if DEPTH_IMG is None or RGB_IMG is None:
@@ -203,9 +203,9 @@ def get_channel( img=None,
         rgb_img = rgb_img[:,:,:3]
         rgb_img = cv.cvtColor(rgb_img, cv.COLOR_BGR2RGB)
         crop_img = rgb_img[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
-        plt.imshow(crop_img)
-        plt.title('cropped image')
-        plt.show()
+        # plt.imshow(crop_img)
+        # plt.title('cropped image')
+        # plt.show()
         orig_gray_img = cv.cvtColor(crop_img, cv.COLOR_RGB2GRAY)
         # gray_img = cv.cvtColor(crop_img, cv.COLOR_RGB2GRAY)
         # plt.imshow(orig_gray_img, cmap='gray')
@@ -283,9 +283,9 @@ def get_channel( img=None,
             min_cnt_idx = i
             max_channel_density = channel_density
         # print(scale_x, scale_y)
-        plt.imshow(cv.drawContours(rgb_img.copy(), [box_rgb], -1, 255, 3))
-        plt.title('check channel contour dimensions')
-        plt.show()
+        # plt.imshow(cv.drawContours(rgb_img.copy(), [box_rgb], -1, 255, 3))
+        # plt.title('check channel contour dimensions')
+        # plt.show()
 
     print(matched_template, min_cnt_val, min_cnt_idx, matched_results[-1])
     
@@ -375,6 +375,7 @@ def estimate_scale(vert_set0, vert_set1):
     yscale = np.linalg.lstsq(vert_set0[:,1].reshape((-1,1)), vert_set1[:,1])[0]
     return xscale[0], yscale[0]
 
+#  NOTE: Modified to return index
 def best_fit_template(all_masks, img, matched_cnt):
     matched_mask = np.zeros_like(img, dtype=np.uint8)
     matched_cnt = matched_cnt + np.array([CROP_REGION[2], CROP_REGION[0]])
@@ -384,7 +385,8 @@ def best_fit_template(all_masks, img, matched_cnt):
     # plt.show()
     most_ones = -np.inf
     best_mask = None
-    for template_mask in all_masks:
+    best_idx = None
+    for idx, template_mask in enumerate(all_masks):
         # plt.imshow(template_mask, cmap='gray')
         # plt.show()
         overlap = np.bitwise_and(template_mask, matched_mask)
@@ -393,138 +395,28 @@ def best_fit_template(all_masks, img, matched_cnt):
         if overlap.sum() > most_ones:
             most_ones = overlap.sum()
             best_mask = template_mask
-    return best_mask
+            best_idx = idx
+    return (best_mask, best_idx)
 
 def align_channel(template_mask, matched_results, img, matched_cnt, matched_template):
     for k,v in TEMPLATES.items():
         if v == matched_template:
            matched_template = k
            break 
-    # plt.imshow(template_mask, cmap='gray')
-    # plt.title('Original template mask')
-    # plt.show()
-    rect, center, size, theta, box = matched_results
-    rotation_angles = [theta, -theta, 90-theta, 180-theta, 180+theta]
-    # print(box)
-    # print('theta = ', theta)
-    # print('size = ', size)
-    scale_x, scale_y = box[:,0].max() - box[:,0].min(), box[:,1].max() - box[:,1].min()
-    # print(template_mask.shape)
-
-    if matched_template == 0:
-        x_dim, y_dim, _ = template_mask.shape
-        if x_dim < y_dim:
-            pad_x1 = int(3/14 * x_dim)
-            pad_x2 = int(2/14 * x_dim)
-            pad_y = int(2/26 * y_dim)
-            mask = np.zeros((x_dim + pad_x1 + pad_x2, y_dim + pad_y*2, 3), dtype=np.uint8)
-            start_x = pad_x1
-            end_x = pad_x1 + x_dim
-            start_y = pad_y
-            end_y = pad_y + y_dim
-            mask[start_x:end_x,start_y:end_y] = template_mask
-        else:
-            pad_x = int(2/26 * x_dim)
-            pad_y1 = int(3/14 * y_dim)
-            pad_y2 = int(2/14 * y_dim)
-            mask = np.zeros((x_dim + pad_x*2, y_dim + pad_y1 + pad_y2, 3), dtype=np.uint8)
-            start_x = pad_x
-            end_x = pad_x + x_dim
-            start_y = pad_y1
-            end_y = pad_y1 + y_dim
-            mask[start_x:end_x,start_y:end_y] = template_mask
-        dilate_kernel = np.ones((10,10), np.uint8)
-        mask = cv.dilate(mask, dilate_kernel, iterations=1)
-        template_mask = mask
-
-    if matched_template == 2:
-        x_dim, y_dim, _ = template_mask.shape
-        if x_dim > y_dim:
-            pad_x1 = int(1.7/27.5 * x_dim)
-            pad_x2 = int(2/27.5 * x_dim)
-            pad_y1 = int(0.5/4.625 * y_dim)
-            # pad_y2 = int(1/4.625 * y_dim)
-            pad_y2 = int(0.5/4.625 * y_dim)
-            mask = np.zeros((x_dim + pad_x1 + pad_x2, y_dim + pad_y1 + pad_y2, 3), dtype=np.uint8)
-            start_x = pad_x1
-            end_x = pad_x1 + x_dim
-            start_y = pad_y1
-            end_y = pad_y1 + y_dim
-        else:
-            pad_x1 = int(0.5/4.625 * x_dim)
-            # pad_x2 = int(1/4.625 * x_dim)
-            pad_x2 = int(0.5/4.625 * x_dim)
-            pad_y1 = int(1.7/27.5 * y_dim)
-            pad_y2 = int(2/27.5 * y_dim)
-            mask = np.zeros((x_dim + pad_x1 + pad_x2, y_dim + pad_y1 + pad_y2, 3), dtype=np.uint8)
-            start_x = pad_x1
-            end_x = pad_x1 + x_dim
-            start_y = pad_y1
-            end_y = pad_y1 + y_dim
-        # mask = np.zeros((x_dim + 2*pad_x, y_dim + 2*pad_y, 3), dtype=np.uint8)
-        # start_x = pad_x
-        # end_x = pad_x + x_dim
-        # start_y = pad_y
-        # end_y = pad_y + y_dim
-        mask[start_x:end_x,start_y:end_y] = template_mask
-        # dilate_kernel = np.ones((5,5), np.uint8)
-        # mask = cv.dilate(mask, dilate_kernel, iterations=1)
-        template_mask = mask
     
-    x_dim, y_dim, _ = template_mask.shape
-    template_mask_ratio = max(x_dim, y_dim)/min(x_dim, y_dim)
-    match_ratio = max(scale_x,scale_y)/min(scale_x,scale_y)
-    # if matched_template != 2:
-    if template_mask_ratio > match_ratio:
-        if y_dim > x_dim:
-            new_x_dim = int(y_dim/match_ratio)
-            mask = np.zeros((new_x_dim, y_dim, 3), dtype=np.uint8)
-            # print(mask.shape, template_mask.shape, TEMPLATE_RATIOS[1])
-            pad_dim = new_x_dim - x_dim
-            mask[pad_dim//2:pad_dim//2+x_dim,:] = template_mask
-        else:
-            new_y_dim = int(x_dim/match_ratio)
-            mask = np.zeros((x_dim, new_y_dim, 3), dtype=np.uint8)
-            # print(mask.shape, template_mask.shape, TEMPLATE_RATIOS[1])
-            pad_dim = new_y_dim - y_dim
-            mask[:,pad_dim//2:pad_dim//2+y_dim] = template_mask
-    else:
-        if y_dim > x_dim:
-            new_y_dim = int(x_dim * match_ratio)
-            mask = np.zeros((x_dim, new_y_dim, 3), dtype=np.uint8)
-            # print(mask.shape, template_mask.shape, TEMPLATE_RATIOS[1])
-            pad_dim = new_y_dim - y_dim
-            mask[:,pad_dim//2:pad_dim//2+y_dim] = template_mask
-        else:
-            new_x_dim = int(y_dim * match_ratio)
-            mask = np.zeros((new_x_dim, y_dim, 3), dtype=np.uint8)
-            # print(mask.shape, template_mask.shape, TEMPLATE_RATIOS[1])
-            pad_dim = new_x_dim - x_dim
-            mask[pad_dim//2:pad_dim//2+x_dim,:] = template_mask
-    # else:
-    #     if template_mask_ratio != match_ratio:
-    #         if scale_y > scale_x:
-    #             new_x_dim, new_y_dim = int(2*scale_y*match_ratio), int(2*scale_x)
-    #         else:
-    #             new_x_dim, new_y_dim = int(2*scale_y), int(2*scale_x*match_ratio)
-    #         mask = np.zeros((new_x_dim, new_y_dim, 3), dtype=np.uint8)
-    #         start_x = new_x_dim//2 - x_dim//2
-    #         end_x = new_x_dim//2 + (x_dim - x_dim//2)
-    #         start_y = new_y_dim//2 - y_dim//2
-    #         end_y = new_y_dim//2 + (y_dim - y_dim//2)
-    #         mask[start_x:end_x, start_y:end_y] = template_mask
-    #         plt.imshow(mask)
-    #         plt.show()
+    rect, center, size, theta, box = matched_results
+    rotation_angles = [theta, -theta, 90-theta, 90+theta, 180-theta, 180+theta, 270+theta, 270-theta]
+    scale_x, scale_y = int(size[0]), int(size[1])
 
 
-    # print(mask.shape)
-    template_mask = mask
     # plt.imshow(template_mask, cmap='gray')
     # plt.title('Padded template mask')
     # plt.show()
 
-    scaled_template_mask = cv.resize(template_mask, (scale_x, scale_y), interpolation= cv.INTER_LINEAR)
-    print(scaled_template_mask.shape)
+    if np.abs(scale_x - template_mask.shape[1]) < np.abs(scale_y - template_mask.shape[1]):
+        scaled_template_mask = cv2.resize(template_mask, (scale_x, scale_y), interpolation= cv2.INTER_LINEAR)
+    else:
+        scaled_template_mask = cv2.resize(template_mask, (scale_y, scale_x), interpolation= cv2.INTER_LINEAR)
     # plt.imshow(scaled_template_mask)
     # plt.title('Scaled template mask')
     # plt.show()
@@ -534,33 +426,258 @@ def align_channel(template_mask, matched_results, img, matched_cnt, matched_temp
     # plt.show()
     all_masks = []
     for rot in rotation_angles:
+        print('rot = ', rot)
         rotated_scaled_template_mask = rotate_image(padded_scaled_template_mask, rot)
-        # plt.imshow(rotated_scaled_template_mask)
-        # plt.title('Rotation angle = ' + str(rot))
-        # plt.show()
         shift_x, shift_y = int(center[0] + CROP_REGION[2] - rotated_scaled_template_mask.shape[1]//2), int(center[1] + CROP_REGION[0] - rotated_scaled_template_mask.shape[0]//2)
         y,x = np.where(rotated_scaled_template_mask[:,:,0] > 0)
         mask = np.zeros_like(img).sum(axis=-1)
         mask[y + shift_y, x + shift_x] = 255
         shifted_rotated_scaled_template_mask = mask
-        #shifted_rotated_scaled_template_mask = translate_mask(rotated_scaled_template_mask, (shift_x, shift_y), img)
-        # plt.imshow(shifted_rotated_scaled_template_mask)
-        # plt.imshow(img, alpha=0.5)
-        # plt.title('Shifted, rotated, and scaled template mask')
-        # plt.show()
 
 
         all_masks.append(shifted_rotated_scaled_template_mask)
 
-    best_template = best_fit_template(all_masks, img, matched_cnt)
+    best_template, best_idx = best_fit_template(all_masks, img, matched_cnt)
 
-    plt.imshow(best_template)
-    plt.imshow(img, alpha=0.5)
-    plt.scatter(center[0]+CROP_REGION[2], center[1]+CROP_REGION[0], c='r')
-    plt.title('Best template')
-    plt.show()
+    if matched_template == 1:
+        template_mask = straight_template_mask
+        if np.abs(scale_x - template_mask.shape[1]) < np.abs(scale_y - template_mask.shape[1]):
+            scaled_template_mask = cv2.resize(template_mask, (scale_x, scale_y), interpolation= cv2.INTER_LINEAR)
+        else:
+            scaled_template_mask = cv2.resize(template_mask, (scale_y, scale_x), interpolation= cv2.INTER_LINEAR)
+        padded_scaled_template_mask = center_mask(scaled_template_mask, img)
+        rot = rotation_angles[best_idx]
+        rotated_scaled_template_mask = rotate_image(padded_scaled_template_mask, rot)
+        shift_x, shift_y = int(center[0] + CROP_REGION[2] - rotated_scaled_template_mask.shape[1]//2), int(center[1] + CROP_REGION[0] - rotated_scaled_template_mask.shape[0]//2)
+        y,x = np.where(rotated_scaled_template_mask[:,:,0] > 0)
+        mask = np.zeros_like(img).sum(axis=-1)
+        mask[y + shift_y, x + shift_x] = 255
+        shifted_rotated_scaled_template_mask = mask
+        best_template = shifted_rotated_scaled_template_mask
+
+
+
+    # plt.imshow(best_template)
+    # plt.imshow(img, alpha=0.5)
+    # plt.scatter(center[0]+CROP_REGION[2], center[1]+CROP_REGION[0], c='r')
+    # plt.title('Best template')
+    # plt.show()
     
-    return best_template #best_fit_template(all_masks, img, matched_cnt)
+    return best_template
+
+# NOTE: Tara deprecated this version 29 Feb; replaced with version above.
+# def align_channel(template_mask, matched_results, img, matched_cnt, matched_template):
+#     for k,v in TEMPLATES.items():
+#         if v == matched_template:
+#            matched_template = k
+#            break 
+#     # plt.imshow(template_mask, cmap='gray')
+#     # plt.title('Original template mask')
+#     # plt.show()
+#     rect, center, size, theta, box = matched_results
+#     # breakpoint()
+#     rotation_angles = [theta, -theta, 90-theta, 90+theta, 180-theta, 180+theta, 270+theta, 270-theta]
+#     # print(box)
+#     # print('theta = ', theta)
+#     # print('size = ', size)
+#     # print(box)
+#     # scale_x, scale_y = box[:,0].max() - box[:,0].min(), box[:,1].max() - box[:,1].min()
+#     scale_x, scale_y = int(size[0]), int(size[1])
+#     # box = np.array(box)
+#     # import itertools
+#     # combos = list(itertools.combinations(range(box.shape[0]),2))
+#     # side1, side2
+#     # print(template_mask.shape)
+
+#     # if matched_template == 0:
+#     #     # plt.imshow(template_mask, cmap='gray')
+#     #     # plt.title('before padding')
+#     #     # plt.show()
+#     #     # breakpoint()
+#     #     x_dim, y_dim, _ = template_mask.shape
+#     #     # pad_x = 30
+#     #     # mask = np.zeros((x_dim + 2*pad_x, y_dim, 3), dtype=np.uint8)
+#     #     # start_x = pad_x
+#     #     # end_x = pad_x + x_dim
+#     #     # mask[start_x:end_x,:] = template_mask
+#     #     pad_y = 5
+#     #     mask = np.zeros((x_dim, y_dim + 2*pad_y, 3), dtype=np.uint8)
+#     #     start_y = pad_y
+#     #     end_y = pad_y + y_dim
+#     #     mask[:, start_y:end_y] = template_mask
+#     #     '''if x_dim < y_dim:
+#     #         pad_x1 = int(3/14 * x_dim)
+#     #         pad_x2 = int(2/14 * x_dim)
+#     #         pad_y = int(2/26 * y_dim)
+#     #         mask = np.zeros((x_dim + pad_x1 + pad_x2, y_dim + pad_y*2, 3), dtype=np.uint8)
+#     #         start_x = pad_x1
+#     #         end_x = pad_x1 + x_dim
+#     #         start_y = pad_y
+#     #         end_y = pad_y + y_dim
+#     #         mask[start_x:end_x,start_y:end_y] = template_mask
+#     #     else:
+#     #         pad_x = int(2/26 * x_dim)
+#     #         pad_y1 = int(3/14 * y_dim)
+#     #         pad_y2 = int(2/14 * y_dim)
+#     #         mask = np.zeros((x_dim + pad_x*2, y_dim + pad_y1 + pad_y2, 3), dtype=np.uint8)
+#     #         start_x = pad_x
+#     #         end_x = pad_x + x_dim
+#     #         start_y = pad_y1
+#     #         end_y = pad_y1 + y_dim
+#     #         mask[start_x:end_x,start_y:end_y] = template_mask'''
+#     #     # plt.imshow(mask, cmap='gray')
+#     #     # plt.title('after padding')
+#     #     # plt.show()
+#     #     # dilate_kernel = np.ones((20,20), np.uint8)
+#     #     # mask = cv2.dilate(mask, dilate_kernel, iterations=1)
+#     #     # plt.imshow(mask, cmap='gray')
+#     #     # plt.title('after dilation')
+#     #     # plt.show()
+#     #     template_mask = mask
+
+#     # if matched_template == 2:
+#     #     x_dim, y_dim, _ = template_mask.shape
+#     #     pad_x = 2
+#     #     mask = np.zeros((x_dim + 2*pad_x, y_dim, 3), dtype=np.uint8)
+#     #     start_x = pad_x
+#     #     end_x = pad_x + x_dim
+#     #     mask[start_x:end_x,:] = template_mask
+#     #     '''if x_dim > y_dim:
+#     #         pad_x1 = int(1.7/27.5 * x_dim)
+#     #         pad_x2 = int(2/27.5 * x_dim)
+#     #         pad_y1 = int(0.5/4.625 * y_dim)
+#     #         # pad_y2 = int(1/4.625 * y_dim)
+#     #         pad_y2 = int(0.5/4.625 * y_dim)
+#     #         mask = np.zeros((x_dim + pad_x1 + pad_x2, y_dim + pad_y1 + pad_y2, 3), dtype=np.uint8)
+#     #         start_x = pad_x1
+#     #         end_x = pad_x1 + x_dim
+#     #         start_y = pad_y1
+#     #         end_y = pad_y1 + y_dim
+#     #     else:
+#     #         pad_x1 = int(0.5/4.625 * x_dim)
+#     #         # pad_x2 = int(1/4.625 * x_dim)
+#     #         pad_x2 = int(0.5/4.625 * x_dim)
+#     #         pad_y1 = int(1.7/27.5 * y_dim)
+#     #         pad_y2 = int(2/27.5 * y_dim)
+#     #         mask = np.zeros((x_dim + pad_x1 + pad_x2, y_dim + pad_y1 + pad_y2, 3), dtype=np.uint8)
+#     #         start_x = pad_x1
+#     #         end_x = pad_x1 + x_dim
+#     #         start_y = pad_y1
+#     #         end_y = pad_y1 + y_dim
+#     #     # mask = np.zeros((x_dim + 2*pad_x, y_dim + 2*pad_y, 3), dtype=np.uint8)
+#     #     # start_x = pad_x
+#     #     # end_x = pad_x + x_dim
+#     #     # start_y = pad_y
+#     #     # end_y = pad_y + y_dim
+#     #     mask[start_x:end_x,start_y:end_y] = template_mask
+#     #     # dilate_kernel = np.ones((5,5), np.uint8)
+#     #     # mask = cv2.dilate(mask, dilate_kernel, iterations=1)'''
+#     #     plt.imshow(mask, cmap='gray')
+#     #     plt.title('after padding')
+#     #     plt.show()
+#     #     template_mask = mask
+    
+#     '''print('TEMPLATE MASK SHAPE:', template_mask.shape)
+#     x_dim, y_dim, _ = template_mask.shape
+#     template_mask_ratio = max(x_dim, y_dim)/min(x_dim, y_dim)
+#     match_ratio = max(scale_x,scale_y)/min(scale_x,scale_y)
+#     # if matched_template != 2:
+#     if template_mask_ratio > match_ratio:
+#         if y_dim > x_dim:
+#             new_x_dim = int(y_dim/match_ratio)
+#             mask = np.zeros((new_x_dim, y_dim, 3), dtype=np.uint8)
+#             # print(mask.shape, template_mask.shape, TEMPLATE_RATIOS[1])
+#             pad_dim = new_x_dim - x_dim
+#             mask[pad_dim//2:pad_dim//2+x_dim,:] = template_mask
+#         else:
+#             new_y_dim = int(x_dim/match_ratio)
+#             mask = np.zeros((x_dim, new_y_dim, 3), dtype=np.uint8)
+#             # print(mask.shape, template_mask.shape, TEMPLATE_RATIOS[1])
+#             pad_dim = new_y_dim - y_dim
+#             mask[:,pad_dim//2:pad_dim//2+y_dim] = template_mask
+#     else:
+#         if y_dim > x_dim:
+#             new_y_dim = int(x_dim * match_ratio)
+#             mask = np.zeros((x_dim, new_y_dim, 3), dtype=np.uint8)
+#             # print(mask.shape, template_mask.shape, TEMPLATE_RATIOS[1])
+#             pad_dim = new_y_dim - y_dim
+#             mask[:,pad_dim//2:pad_dim//2+y_dim] = template_mask
+#         else:
+#             new_x_dim = int(y_dim * match_ratio)
+#             mask = np.zeros((new_x_dim, y_dim, 3), dtype=np.uint8)
+#             # print(mask.shape, template_mask.shape, TEMPLATE_RATIOS[1])
+#             pad_dim = new_x_dim - x_dim
+#             mask[pad_dim//2:pad_dim//2+x_dim,:] = template_mask
+#     # else:
+#     #     if template_mask_ratio != match_ratio:
+#     #         if scale_y > scale_x:
+#     #             new_x_dim, new_y_dim = int(2*scale_y*match_ratio), int(2*scale_x)
+#     #         else:
+#     #             new_x_dim, new_y_dim = int(2*scale_y), int(2*scale_x*match_ratio)
+#     #         mask = np.zeros((new_x_dim, new_y_dim, 3), dtype=np.uint8)
+#     #         start_x = new_x_dim//2 - x_dim//2
+#     #         end_x = new_x_dim//2 + (x_dim - x_dim//2)
+#     #         start_y = new_y_dim//2 - y_dim//2
+#     #         end_y = new_y_dim//2 + (y_dim - y_dim//2)
+#     #         mask[start_x:end_x, start_y:end_y] = template_mask
+#     #         plt.imshow(mask)
+#     #         plt.show()'''
+
+
+#     # print(mask.shape)
+#     # template_mask = mask
+#     # plt.imshow(template_mask, cmap='gray')
+#     # plt.title('Padded template mask')
+#     # plt.show()
+
+#     # scaled_template_mask = cv2.resize(template_mask, (scale_x, scale_y), interpolation= cv2.INTER_LINEAR)
+#     # print(template_mask.shape)
+#     # print(scale_x, scale_y)
+#     if np.abs(scale_x - template_mask.shape[1]) < np.abs(scale_y - template_mask.shape[1]):
+#         scaled_template_mask = cv2.resize(template_mask, (scale_x, scale_y), interpolation= cv2.INTER_LINEAR)
+#     else:
+#         scaled_template_mask = cv2.resize(template_mask, (scale_y, scale_x), interpolation= cv2.INTER_LINEAR)
+#     # scaled_template_mask = cv2.resize(template_mask, (scale_x, scale_y), interpolation= cv2.INTER_LINEAR)
+#     # print(scaled_template_mask.shape)
+#     # plt.imshow(scaled_template_mask)
+#     # plt.title('Scaled template mask')
+#     # plt.show()
+#     padded_scaled_template_mask = center_mask(scaled_template_mask, img)
+#     # plt.imshow(padded_scaled_template_mask, cmap='gray')
+#     # plt.title('Padded template mask')
+#     # plt.show()
+#     all_masks = []
+#     for rot in rotation_angles:
+#         # print('rot = ', rot)
+#         rotated_scaled_template_mask = rotate_image(padded_scaled_template_mask, rot)
+#         # plt.imshow(rotated_scaled_template_mask)
+#         # plt.title('Rotation angle = ' + str(rot))
+#         # plt.show()
+#         shift_x, shift_y = int(center[0] + CROP_REGION[2] - rotated_scaled_template_mask.shape[1]//2), int(center[1] + CROP_REGION[0] - rotated_scaled_template_mask.shape[0]//2)
+#         y,x = np.where(rotated_scaled_template_mask[:,:,0] > 0)
+#         mask = np.zeros_like(img).sum(axis=-1)
+#         mask[y + shift_y, x + shift_x] = 255
+#         shifted_rotated_scaled_template_mask = mask
+#         #shifted_rotated_scaled_template_mask = translate_mask(rotated_scaled_template_mask, (shift_x, shift_y), img)
+#         # plt.imshow(shifted_rotated_scaled_template_mask)
+#         # plt.imshow(img, alpha=0.5)
+#         # plt.title('Shifted, rotated, and scaled template mask')
+#         # plt.show()
+
+
+#         all_masks.append(shifted_rotated_scaled_template_mask)
+
+#     best_template = best_fit_template(all_masks, img, matched_cnt)
+#     # print('best rotation angle = ', rotation_angles[best_idx])
+#     # print('original theta = ', theta)
+
+#     plt.imshow(best_template)
+#     plt.imshow(img, alpha=0.5)
+#     plt.scatter(center[0]+CROP_REGION[2], center[1]+CROP_REGION[0], c='r')
+#     plt.title('Best template')
+#     plt.show()
+    
+#     return best_template #best_fit_template(all_masks, img, matched_cnt)
 
 
 def get_true_center_curved_bbox(curved_bbox, gray_img):

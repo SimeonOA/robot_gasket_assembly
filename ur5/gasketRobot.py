@@ -147,6 +147,7 @@ class GasketRobot(UR5Robot):
         # want it rotated 90 degrees from the start pose 
         # want these to be the same cause we don't want the gripper rotating while it's sliding
         goal_pose.rotation = start_pose.rotation
+        
         # want it rotated 90 degrees from the start pose and descend to pose does that for us for the start pose
         # but we need to explicitly set it for the goal pose
         self.rotate_pose90(goal_pose)

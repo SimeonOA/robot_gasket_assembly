@@ -22,6 +22,7 @@ from random import shuffle
 import math
 import matplotlib.pyplot as plt
 from sklearn.linear_model import RANSACRegressor
+from plantcv import plantcv as pcv
 import pyzed.sl as sl
 
 def setup_zed_camera(cam_id):
@@ -73,7 +74,10 @@ def get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth):
 
 def get_corners(skeleton_img):
     # Convert to grayscale
-    gray = cv2.cvtColor(skeleton_img, cv2.COLOR_BGR2GRAY)
+    breakpoint()
+    skeleton = skeleton_img.copy().astype(np.int16) * 255
+    pruned_skeleton, _, _ = pcv.morphology.prune(skel_img=skeleton, size=30)
+    gray = cv2.cvtColor(skeleton, cv2.COLOR_BGR2GRAY)
 
     # Apply a threshold if your mask isn't binary
     _, mask = cv2.threshold(gray, 10, 255, cv2.THRESH_BINARY)
@@ -106,11 +110,11 @@ def sort_skeleton_pts(skeleton_img, endpoint):
                 continue
             if skeleton_img[test_loc[0]][test_loc[1]].sum() > 0:
                 q.append(test_loc)
-    plt.scatter(x = [j[1] for j in sorted_pts], y=[i[0] for i in sorted_pts],c='w')
-    plt.scatter(x=[sorted_pts[-1][1], sorted_pts[0][1]], y=[sorted_pts[-1][0], sorted_pts[0][0]], c='g')
-    plt.scatter(x=[endpoint[1]], y=[endpoint[0]], c='r')
-    plt.imshow(skeleton_img)
-    plt.show()
+    # plt.scatter(x = [j[1] for j in sorted_pts], y=[i[0] for i in sorted_pts],c='w')
+    # plt.scatter(x=[sorted_pts[-1][1], sorted_pts[0][1]], y=[sorted_pts[-1][0], sorted_pts[0][0]], c='g')
+    # plt.scatter(x=[endpoint[1]], y=[endpoint[0]], c='r')
+    # plt.imshow(skeleton_img)
+    # plt.show()
     return sorted_pts
 
 def act_to_kps(act):
@@ -246,9 +250,9 @@ def make_bounding_boxes(img):
     # cv2.imwrite('two_blobs_result.jpg',result)      
 
     # show thresh and result  
-    plt.title("bounding box for detection")  
-    plt.imshow(result, interpolation="nearest")
-    plt.show()
+    # plt.title("bounding box for detection")  
+    # plt.imshow(result, interpolation="nearest")
+    # plt.show()
 
     return result
 
@@ -280,21 +284,21 @@ def skeletonize_img(img):
     #find candidates who 
 
     # display results
-    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(8, 4),
-                            sharex=True, sharey=True)
+    # fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(8, 4),
+    #                         sharex=True, sharey=True)
 
-    ax = axes.ravel()
+    # ax = axes.ravel()
 
-    ax[0].imshow(image, cmap=plt.cm.gray)
-    ax[0].axis('off')
-    ax[0].set_title('original', fontsize=20)
+    # ax[0].imshow(image, cmap=plt.cm.gray)
+    # ax[0].axis('off')
+    # ax[0].set_title('original', fontsize=20)
 
-    ax[1].imshow(skeleton, cmap=plt.cm.gray)
-    ax[1].axis('off')
-    ax[1].set_title('skeleton', fontsize=20)
+    # ax[1].imshow(skeleton, cmap=plt.cm.gray)
+    # ax[1].axis('off')
+    # ax[1].set_title('skeleton', fontsize=20)
 
-    fig.tight_layout()
-    plt.show()
+    # fig.tight_layout()
+    # plt.show()
 
     return skeleton
 
@@ -397,9 +401,9 @@ def prune_branches(branch_endpoints, skeleton_img):
                 break
         # sets all of those passed pixels to False
     # breakpoint()
-    plt.title("pruned skeleton")
-    plt.imshow(skeleton_img)
-    plt.show()
+    # plt.title("pruned skeleton")
+    # plt.imshow(skeleton_img)
+    # plt.show()
     return skeleton_img
 
 def find_length_and_endpoints(skeleton_img):
@@ -552,13 +556,13 @@ def find_length_and_endpoints(skeleton_img):
         branch_endpoints.remove(final_endpoint)
     pruned_skeleton = prune_branches(branch_endpoints, skeleton_img.copy())
 
-    plt.scatter(x = [j[0][1] for j in endpoints], y=[i[0][0] for i in endpoints],c='w')
-    plt.scatter(x = [final_endpoints[1][1]], y=[final_endpoints[1][0]],c='r')
-    plt.scatter(x = [final_endpoints[0][1]], y=[final_endpoints[0][0]],c='r')
-    plt.title("final endpoints")
-    plt.scatter(x=start_pt[1], y=start_pt[0], c='g')
-    plt.imshow(skeleton_img, interpolation="nearest")
-    plt.show() 
+    # plt.scatter(x = [j[0][1] for j in endpoints], y=[i[0][0] for i in endpoints],c='w')
+    # plt.scatter(x = [final_endpoints[1][1]], y=[final_endpoints[1][0]],c='r')
+    # plt.scatter(x = [final_endpoints[0][1]], y=[final_endpoints[0][0]],c='r')
+    # plt.title("final endpoints")
+    # plt.scatter(x=start_pt[1], y=start_pt[0], c='g')
+    # plt.imshow(skeleton_img, interpolation="nearest")
+    # plt.show() 
 
     print("the final endpoints are: ", final_endpoints)
     # breakpoint()
@@ -744,9 +748,9 @@ def crop_img(vert_end, horiz_end, img):
     full_mask_horiz = np.hstack((zero_mask_horiz, one_mask_horiz))
     full_mask = np.logical_and(full_mask_vert, full_mask_horiz)
     cropped_img = full_mask * img
-    plt.title('cropped img')
-    plt.imshow(cropped_img)
-    plt.show()
+    # plt.title('cropped img')
+    # plt.imshow(cropped_img)
+    # plt.show()
     return cropped_img
 
 

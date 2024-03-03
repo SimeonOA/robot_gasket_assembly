@@ -31,12 +31,12 @@ NUM_PTS = 4
 argparser = argparse.ArgumentParser()
 # options for experiment type, either 'no_ends' or 'one_end'
 argparser.add_argument('--exp', type=str, default='no_ends_attached')
-# options for where to push on channel: 'unidirectional', 'golden', 'binary', 'slide'
-argparser.add_argument('--num_points', type=int, default=4)
+# options for where to push on channel: 'uni', 'golden', 'binary', 'slide'
+argparser.add_argument('--num_points', type=int, default=8)
 argparser.add_argument('--use_slide', action='store_true', default=False)
-argparser.add_argument('--push_mode', type=str, default='unidirectional')
-# options for where to pick the cable at: 'unidirectional', 'golden', 'binary'
-argparser.add_argument('--pick_mode', type=str, default='unidirectional')
+argparser.add_argument('--push_mode', type=str, default='uni')
+# options for where to pick the cable at: 'uni', 'golden', 'binary'
+argparser.add_argument('--pick_mode', type=str, default='uni')
 argparser.add_argument('--blur_radius', type=int, default=5)
 argparser.add_argument('--sigma', type=int, default=0)
 argparser.add_argument('--dilate_size_channel', type=int, default=2)
@@ -351,6 +351,16 @@ def get_rw_pose(orig_pt, sorted_pixels, n, ratio, camCal, is_channel_pt, use_dep
     return orig_rt_pose
 
 # gets rigid transform given pose
+
+def get_sorted_channel_pts(cable_mask_binary, cable_endpoints, channel_endpoints):
+    cable_skeleton = skeletonize(cable_mask_binary)
+    cable_length, cable_endpoints = find_length_and_endpoints(cable_skeleton)
+
+    # we sort the points on channel and cable to get a relation between the points
+    sorted_cable_pts, sorted_channel_pts = get_sorted_pts(cable_endpoints, channel_endpoints, cable_skeleton)
+
+    swapped_sorted_channel_pts = [(pt[1], pt[0]) for pt in sorted_channel_pts]
+    return swapped_sorted_channel_pts
 
 def no_ends_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camCal, use_depth = False):
     cable_skeleton = skeletonize(cable_mask_binary)
@@ -785,55 +795,23 @@ if __name__=='__main__':
     # approximately how many points along the channel we want to move and push to
     NUM_PTS = args.num_points
 
-    def get_search_idx(search_ratio, mode):
-        search_idx = search(search_ratio, search_ratio/NUM_PTS)
+    def get_binary_search_idx():
         sorted_search_idx = []
-        taken_idx = []
-        breakpoint()
-        if mode == 'binary':
-            diffs = [np.abs(val-0.5) for val in search_idx]
-            idx = diffs.index(min(diffs))
-            sorted_search_idx.append(search_idx[idx])
-            taken_idx.append(idx)
-        elif mode == 'golden':
-            diffs = [np.abs(val-0.5) for val in search_idx]
-            idx = diffs.index(min(diffs))
-            sorted_search_idx.append(search_idx[idx])
-            taken_idx.append(idx)
-            complementary_val = 1 - search_idx[idx]
-            diffs = [np.abs(val-complementary_val) for val in search_idx]
-            idx = diffs.index(min(diffs))
-            sorted_search_idx.append(search_idx[idx])
-            taken_idx.append(idx)
-        for i in range(len(search_idx)):
-            if i in taken_idx:
-                continue
-            curr_val = search_idx[i]
-            complementary_val = abs(1-curr_val)
-            diffs = [abs(val-complementary_val) for val in search_idx]
-            complementary_idx = diffs.index(min(diffs))
-            if curr_val < complementary_val:
-                sorted_search_idx.append(curr_val)
-                sorted_search_idx.append(complementary_val)
-            else:
-                sorted_search_idx.append(complementary_val)
-                sorted_search_idx.append(curr_val)
-            taken_idx.append(i)
-            taken_idx.append(complementary_idx)
-        '''stride = round((len(search_idx)-1)/2)
-        for i in range(1,round(len(search_idx)/2)):
-            sorted_search_idx.append(search_idx[i])
-            sorted_search_idx.append(search_idx[i+stride])'''
-        breakpoint()
+        for i in range(int(np.log2(NUM_PTS))):
+            power = 2**(i+1)
+            val = 1/power
+            while val <= 1/2:
+                if val not in sorted_search_idx:
+                    sorted_search_idx.append(val)
+                if 1-val not in sorted_search_idx:
+                    sorted_search_idx.append(1-val)
+                val += 1/power
+        
         return sorted_search_idx
 
-    if PICK_MODE == "binary":
-        search_ratio = 1/2
-        sorted_search_idx = get_search_idx(search_ratio, PICK_MODE)
-    elif PICK_MODE == "golden":
-        search_ratio = 1/((1+np.sqrt(5))/2)
-        sorted_search_idx = get_search_idx(search_ratio, PICK_MODE)
-    elif PICK_MODE == "unidirectional":
+    if PICK_MODE == "binary" or PICK_MODE == 'hybrid':
+        sorted_search_idx = get_binary_search_idx()
+    elif PICK_MODE == "uni":
         sorted_search_idx = [(1/NUM_PTS)*i for i in range(NUM_PTS)]
 
 
@@ -847,6 +825,7 @@ if __name__=='__main__':
     if matched_template != "trapezoid":
         slide_start_pose, slide_end_pose = get_slide_start_end(cable_mask_binary, cable_endpoints, channel_endpoints, camCal)
         slide_mid_pose = None
+        swapped_sorted_channel_pts = get_sorted_channel_pts(cable_mask_binary, cable_endpoints, channel_endpoints)
         '''cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
         channel_skeleton, channel_length, channel_endpoints, matched_template, aligned_channel_mask, channel_cnt_mask, channel_cnt = detect_channel(rgb_img, cable_mask_binary, args)
         ratio = sorted_search_idx[0]
@@ -891,6 +870,34 @@ if __name__=='__main__':
             else:
                 pick_and_place_ratio(cable_mask_binary, cable_endpoints, channel_endpoints, camCal, ratio, channel_cnt_mask)
             robot.gripper.open()
+            if PUSH_MODE == 'hybrid' and i == 0:
+                robot.go_home()
+                # rgb_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
+                rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
+                cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
+                # channel_skeleton, channel_length, channel_endpoints, matched_template = detect_channel(rgb_img, cable_mask_binary, args)
+
+                # performs the experiment given no ends are attached to the channel
+                swapped_sorted_cable_pts, swapped_sorted_channel_pts, slide_start_pose = no_ends_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camCal)
+                
+                # even if we are doing no_ends_attached we simply 
+                # need to attach one end then we can run the program as if it was always just one end attached        
+                # color_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
+                # rgb_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
+                
+                # rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
+                    
+                existing_pick_pt = swapped_sorted_cable_pts[0]
+                second_endpt_side = 'right' if existing_pick_pt[0] < 555 else 'left'
+                
+                ### NOTE: TAKE NEW PHOTO SINCE CABLE END MAY MOVE AFTER FIRST POINT INSERTION
+                robot.go_home()
+                ### END NOTE
+                
+                # rgb_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
+                rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
+                cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
+                slide_end_pose = one_end_attached(cable_mask_binary, cable_endpoints, channel_endpoints, camCal, second_endpt_side)
             '''if PUSH_MODE == 'binary' and i == 0:
                 robot.go_home()
                 # rgb_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
@@ -1116,12 +1123,8 @@ if __name__=='__main__':
             pick_and_place_ratio(cable_mask_binary, cable_endpoints, channel_endpoints, camCal, midpt_ratio, channel_cnt_mask)
 
     if PUSH_MODE == "binary":
-        search_ratio = 1/2
-        sorted_push_idx = get_search_idx(search_ratio, PUSH_MODE)
-    elif PUSH_MODE == "golden":
-        search_ratio = 1/((1+np.sqrt(5))/2)
-        sorted_push_idx = get_search_idx(search_ratio, PUSH_MODE)
-    elif PUSH_MODE == "unidirectional":
+        sorted_search_idx = get_binary_search_idx()
+    elif PUSH_MODE == "uni" or PUSH_MODE=='hybrd':
         sorted_push_idx = [(1/NUM_PTS_PUSH)*i for i in range(NUM_PTS_PUSH+1)]
 
     NUM_PTS_PRESS = 12
@@ -1136,12 +1139,8 @@ if __name__=='__main__':
                 # # NOTE: TRY PRESSING DOWN FIRST TO AVOID SLIDING THE CABLE OUT
                 # sorted_push_idx = [(1/NUM_PTS_PRESS)*i for i in range(NUM_PTS_PRESS+1)]
                 if PUSH_MODE == "binary":
-                    search_ratio = 1/2
-                    sorted_push_idx = get_search_idx(search_ratio, PUSH_MODE)
-                elif PUSH_MODE == "golden":
-                    search_ratio = 1/((1+np.sqrt(5))/2)
-                    sorted_push_idx = get_search_idx(search_ratio, PUSH_MODE)
-                elif PUSH_MODE == "unidirectional":
+                    sorted_push_idx = get_binary_search_idx()
+                elif PUSH_MODE == "uni" or PUSH_MODE =='hybrid':
                     sorted_push_idx = [(1/NUM_PTS_PUSH)*i for i in range(NUM_PTS_PUSH+1)]
                 push_down(sorted_push_idx)
 
@@ -1157,28 +1156,28 @@ if __name__=='__main__':
             # # NOTE: TRY PRESSING DOWN FIRST TO AVOID SLIDING THE CABLE OUT
             # sorted_push_idx = [(1/NUM_PTS_PRESS)*i for i in range(NUM_PTS_PRESS+1)]
             if PUSH_MODE == "binary":
-                search_ratio = 1/2
-                sorted_push_idx = get_search_idx(search_ratio, PUSH_MODE)
-            elif PUSH_MODE == "golden":
-                search_ratio = 1/((1+np.sqrt(5))/2)
-                sorted_push_idx = get_search_idx(search_ratio, PUSH_MODE)
-            elif PUSH_MODE == "unidirectional":
+                sorted_push_idx = get_binary_search_idx()
+            elif PUSH_MODE == "uni" or PUSH_MODE == 'hybrid':
                 sorted_push_idx = [(1/NUM_PTS_PUSH)*i for i in range(NUM_PTS_PUSH+1)]
             push_down(sorted_push_idx)
 
         if args.use_slide:
-            # robot.linear_push(slide_start_pose, slide_end_pose)
-            robot.rotate_pose90(slide_mid_pose)
+            if PUSH_MODE == 'uni':
+                robot.linear_push(slide_start_pose, slide_end_pose)
+                robot.go_home()
+            else:
+                robot.rotate_pose90(slide_mid_pose)
 
-            smp_copy = RigidTransform()
-            smp_copy.rotation = slide_mid_pose.rotation.copy()
-            smp_copy.translation = slide_mid_pose.translation.copy()
-            robot.linear_push(slide_mid_pose, slide_end_pose)
-            robot.go_home()
-            robot.linear_push(smp_copy, slide_start_pose)
+                smp_copy = RigidTransform()
+                smp_copy.rotation = slide_mid_pose.rotation.copy()
+                smp_copy.translation = slide_mid_pose.translation.copy()
+                robot.linear_push(slide_mid_pose, slide_end_pose)
+                robot.go_home()
+                robot.linear_push(smp_copy, slide_start_pose)
         # means that we should just be pushing down normally
         else:
-            push_down(sorted_push_idx)
+            if not PUSH_BEFORE_SLIDE:
+                push_down(sorted_push_idx)
     elif matched_template == 'trapezoid':
         if args.use_slide:
             # probably want to do something like 4 linear slides or something

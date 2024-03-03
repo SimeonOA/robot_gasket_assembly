@@ -4,6 +4,7 @@ import numpy as np
 # Load your mask image
 image = cv2.imread('/home/gasket/robot_cable_insertion/ur5/images/full_trapezoid_assembly_cropped_good_resized_skeleton.png')
 
+breakpoint()
 # Convert to grayscale
 gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 

@@ -24,6 +24,7 @@ import matplotlib.pyplot as plt
 from sklearn.linear_model import RANSACRegressor
 from plantcv import plantcv as pcv
 import pyzed.sl as sl
+from resources import CROP_REGION
 
 def setup_zed_camera(cam_id):
     side_cam = sl.Camera()
@@ -72,12 +73,39 @@ def get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth):
     # rgb_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
     return rgb_img 
 
+def get_corners2(rgb_img, channel_cnt):
+    channel_cnt = channel_cnt + np.array([CROP_REGION[2], CROP_REGION[0]])
+    p = cv2.arcLength(channel_cnt, True) # cnt is the rect Contours
+    appr = cv2.approxPolyDP(channel_cnt, 0.02*p, True) # appr contains the 4 points
+
+    appr = sorted(appr, key=lambda c: c[0][0])
+
+    #pa = top lef point
+    #pb = bottom left point
+    #pc = top right point
+    #pd = bottom right point
+
+    pa, pb = sorted(appr[:2], key=lambda c: c[0][1])
+    pc, pd = sorted(appr[2:4], key=lambda c: c[0][1])
+    # plt.imshow(cv2.drawContours(rgb_img.copy(), [channel_cnt], -1, 255, 3))
+    # plt.scatter(pa[0,0], pa[0,1], c='r')
+    # plt.scatter(pb[0,0], pb[0,1], c='b')
+    # plt.scatter(pc[0,0], pc[0,1], c='g')
+    # plt.scatter(pd[0,0], pd[0,1], c='k')
+    # plt.show()
+
+    return [[pa[0,1], pa[0,0]], [pb[0,1], pb[0,0]], [pc[0,1], pc[0,0]], [pd[0,1], pd[0,0]]] 
+
 def get_corners(skeleton_img):
     # Convert to grayscale
-    breakpoint()
-    skeleton = skeleton_img.copy().astype(np.int16) * 255
-    pruned_skeleton, _, _ = pcv.morphology.prune(skel_img=skeleton, size=30)
-    gray = cv2.cvtColor(skeleton, cv2.COLOR_BGR2GRAY)
+
+    # 3/1/24 added in type conversion and stacking for it to work with the cv2 functions 
+    skeleton_img = skeleton_img.astype(np.uint8)
+    skeleton_img = skeleton_img*255
+    # pruned_skeleton, _, _ = pcv.morphology.prune(skel_img=skeleton_img, size=40)
+    
+    skeleton_img = cv2.merge((skeleton_img, skeleton_img, skeleton_img))
+    gray = cv2.cvtColor(skeleton_img, cv2.COLOR_BGR2GRAY)
 
     # Apply a threshold if your mask isn't binary
     _, mask = cv2.threshold(gray, 10, 255, cv2.THRESH_BINARY)
@@ -88,7 +116,17 @@ def get_corners(skeleton_img):
     # Convert the corners to integers
     corners = np.int0(corners)
 
+    # image = skeleton_img.copy()
+    # for i in corners:
+    #     x, y = i.ravel()
+    #     cv2.circle(image, (x, y), 1, 255, -1)
+    # plt.imshow(image)
+    # plt.show()
+
+    corners = corners.reshape((4,2))
+    corners = [[corners[i][1], corners[i][0]] for i in range(len(corners))]
     return corners
+
 def sort_skeleton_pts(skeleton_img, endpoint):
     NEIGHS = [(-1, 0), (1, 0), (0, 1), (0, -1), (-1,-1), (-1,1), (1,-1),(1,1)]
     visited = set()

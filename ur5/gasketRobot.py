@@ -156,6 +156,7 @@ class GasketRobot(UR5Robot):
         self.force_mode(self.get_pose(convert=False),[0,0,1,0,0,0],[0,0,15,0,0,0],2,[0.05,1,0.2,0.05,0.05,0.05],damping=0.5)
         self.move_pose(goal_pose, interp='tcp')
         self.end_force_mode()
+        self.stop_joint()
     
     def rotate_pose90(self,pose):
         pose.rotation = R.from_euler("xyz",[0,0,np.pi/2]).as_matrix()@pose.rotation

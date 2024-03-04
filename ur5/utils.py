@@ -556,7 +556,6 @@ def find_length_and_endpoints(skeleton_img):
         endpoints.insert(0, [start_pt, distance])
         initial_endpoint = True
 
-    # pdb.set_trace()
     final_endpoints = []
     # largest = second_largest = None
     # for pt, distance in endpoints:
@@ -571,8 +570,7 @@ def find_length_and_endpoints(skeleton_img):
     #     final_endpoints = [endpoints[second_largest][0], endpoints[largest][0]]
     
     largest_pos = largest_neg = None
-    print("IS LOOP:", IS_LOOP)
-    print("IS LOOP VISIT: ", IS_LOOP_VISIT)
+
     if IS_LOOP:
         final_endpoints = [endpoints[0][0]] # MAYBE RAND INDEX LATER
     else:
@@ -585,9 +583,6 @@ def find_length_and_endpoints(skeleton_img):
             final_endpoints = [endpoints[0][0], endpoints[largest_pos][0]]
         else:
             final_endpoints = [endpoints[largest_neg][0], endpoints[largest_pos][0]]
-    # breakpoint()
-    print("num endpoints = ", len(endpoints))
-    print("endpoints are: ", endpoints)
     branch_endpoints = endpoints.copy()
     branch_endpoints = [x[0] for x in branch_endpoints]
     for final_endpoint in final_endpoints:
@@ -602,24 +597,14 @@ def find_length_and_endpoints(skeleton_img):
     # plt.imshow(skeleton_img, interpolation="nearest")
     # plt.show() 
 
-    print("the final endpoints are: ", final_endpoints)
-    # breakpoint()
-    # pdb.set_trace()
-    # display results
-
-    print("the total length is ", total_length)
     return total_length, final_endpoints
 
 # Function to check the index of a  
 def check_index(p_array, part, ind = False):
     newp_array = p_array.T
-    # print("newp_array:", newp_array)
     p_shape = newp_array.shape
     check = np.where(newp_array == part)
-    # print ("check[0]:", check[0])
-    # print ("len(check[0]):", len(check[0]))
-    # print ("part:", part)
-    # print ("len(part):", len(part))
+
     if len(check[0]) != len(part):
         return False
     else:

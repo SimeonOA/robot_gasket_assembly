@@ -23,7 +23,7 @@ class GasketRobot(UR5Robot):
         
         # want to mvoe in jointspace cause that guarantees that the wrist doesn't overrotate
         home_joints = [-1.0757859388934534, -1.5192683378802698, -1.6562803427325647, -1.537062946950094, 1.5727322101593018, 0.49344709515571594]
-        self.move_joint(home_joints, vel=0.5, interp="joint")
+        self.move_joint(home_joints, vel=0.8, interp="joint")
 
     def open_grippers(self):
         self.gripper.open()
@@ -33,7 +33,7 @@ class GasketRobot(UR5Robot):
     
     def pick_and_place(self, pick_pose, place_pose, move_low=False):
         pick_overhead_trans= copy.deepcopy(pick_pose.translation)
-        pick_overhead_trans[2] += 0.00 if move_low else 0.03 # some offset, probably need to tune
+        pick_overhead_trans[2] += 0.00 if move_low else 0.03 #NOTE: THIS WAS 0.03 AND WORKED VERY WELL FOR STRAIGHT CHANNEL # some offset, probably need to tune
         pick_overhead_pose = RigidTransform(rotation=pick_pose.rotation, translation=pick_overhead_trans)
         self.gripper.set_pos(135)
         self.move_pose(pick_overhead_pose)
@@ -83,7 +83,7 @@ class GasketRobot(UR5Robot):
         if is_place_pt:
             # decrease height so that we can push down and 
             pose.translation[2] -= 0.02
-            print(f"force control: {force_ctrl}")
+            # print(f"force control: {force_ctrl}")
         if not force_ctrl:
             self.close_grippers()
             self.move_pose(pose)
@@ -101,9 +101,9 @@ class GasketRobot(UR5Robot):
     def descend_to_pose(self, pose, convert=True, force_limit=50):
         # breakpoint()
         if convert:
-            pose.translation[2] += 0.03
+            pose.translation[2] += 0.025
         else:
-            pose[2] += 0.03
+            pose[2] += 0.025
         # pose.rotation = pose.rotation + R.from_euler("xyz",[0,0,-np.pi]).as_matrix()
         pose.rotation = R.from_euler("xyz",[0,0,np.pi/2]).as_matrix()@pose.rotation
         self.move_pose(pose, convert=convert, interp="tcp")
@@ -126,7 +126,7 @@ class GasketRobot(UR5Robot):
         current_force = []
         while True:
             # print(np.array(self.get_current_force()[:3]))
-            print(f"Descending {np.linalg.norm(np.array(self.get_current_force()[:3]))}")
+            # print(f"Descending {np.linalg.norm(np.array(self.get_current_force()[:3]))}")
             if convert:
                 pose.translation[2] -= 0.0001
             else:
@@ -137,12 +137,12 @@ class GasketRobot(UR5Robot):
             if len(current_force) > 4:
                 current_force = current_force[1:]
             if np.average(current_force) > force_limit:
-                print("Over threshold, stopping push. Forces:")
-                print(current_force)
+                # print("Over threshold, stopping push. Forces:")
+                # print(current_force)
                 break
         self.stop_joint()
 
-    def linear_push(self, start_pose, goal_pose):
+    def slide_linear(self, start_pose, goal_pose):
         self.close_grippers()
         # want it rotated 90 degrees from the start pose 
         # want these to be the same cause we don't want the gripper rotating while it's sliding

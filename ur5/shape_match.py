@@ -12,7 +12,7 @@ from skimage.transform import probabilistic_hough_line
 from PIL import Image
 from franka.sensing.utils_binary import skeletonize_img, find_length_and_endpoints, sort_skeleton_pts
 from franka.sensing.depth_sensing import parseArg, get_rgb_get_depth
-from resources import CROP_REGION, curved_template_mask, straight_template_mask, trapezoid_template_mask, straight_template_mask_align, trapezoid_template_skeleton
+from resources import CROP_REGION, curved_template_mask, straight_template_mask, trapezoid_template_mask, trapezoid_template_skeleton
 from real_sense_modules import *
 
 argparser = argparse.ArgumentParser()
@@ -438,7 +438,22 @@ def align_channel(template_mask, matched_results, img, matched_cnt, matched_temp
 
     best_template, best_idx = best_fit_template(all_masks, img, matched_cnt)
 
-    if matched_template == 1:
+    if matched_template == 0:
+        template_mask = curved_template_mask
+        if np.abs(scale_x - template_mask.shape[1]) < np.abs(scale_y - template_mask.shape[1]):
+            scaled_template_mask = cv2.resize(template_mask, (scale_x, scale_y), interpolation= cv2.INTER_LINEAR)
+        else:
+            scaled_template_mask = cv2.resize(template_mask, (scale_y, scale_x), interpolation= cv2.INTER_LINEAR)
+        padded_scaled_template_mask = center_mask(scaled_template_mask, img)
+        rot = rotation_angles[best_idx]
+        rotated_scaled_template_mask = rotate_image(padded_scaled_template_mask, rot)
+        shift_x, shift_y = int(center[0] + CROP_REGION[2] - rotated_scaled_template_mask.shape[1]//2), int(center[1] + CROP_REGION[0] - rotated_scaled_template_mask.shape[0]//2)
+        y,x = np.where(rotated_scaled_template_mask[:,:,0] > 0)
+        mask = np.zeros_like(img).sum(axis=-1)
+        mask[y + shift_y, x + shift_x] = 255
+        shifted_rotated_scaled_template_mask = mask
+        best_template = shifted_rotated_scaled_template_mask
+    elif matched_template == 1:
         template_mask = straight_template_mask
         if np.abs(scale_x - template_mask.shape[1]) < np.abs(scale_y - template_mask.shape[1]):
             scaled_template_mask = cv2.resize(template_mask, (scale_x, scale_y), interpolation= cv2.INTER_LINEAR)

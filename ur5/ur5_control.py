@@ -11,7 +11,7 @@ from utils import *
 import argparse
 from gasketRobot import GasketRobot
 from scipy.spatial.transform import Rotation as R
-from resources import CROP_REGION, MIDPOINT_THRESHOLD, curved_template_mask, straight_template_mask, trapezoid_template_mask, straight_template_mask_align
+from resources import CROP_REGION, MIDPOINT_THRESHOLD, curved_template_mask, straight_template_mask, trapezoid_template_mask, curved_template_mask_align, straight_template_mask_align
 from calibration.image_robot import ImageRobot
 from zed_camera import ZedCamera
 import math
@@ -153,7 +153,7 @@ def detect_channel(rgb_img, cable_mask_binary, args):
     matched_template, matched_results, channel_cnt = get_channel(rgb_img)
 
     if matched_template == 'curved':
-        template_mask = curved_template_mask
+        template_mask = curved_template_mask_align
     elif matched_template == 'straight':
         # NOTE: Modified to use large mask for contour fitting
         template_mask = straight_template_mask_align
@@ -186,7 +186,7 @@ def detect_channel(rgb_img, cable_mask_binary, args):
     _ = cv2.drawContours(channel_cnt_mask, [channel_cnt + np.array([CROP_REGION[2], CROP_REGION[0]])],-1, [255,255,255], -1)
     # cv2.drawContours(image=mask,contours=channel_cnt + np.array([CROP_REGION[2], CROP_REGION[0]]),contourIdx=-1,color=(0,255,255),thickness=cv2.FILLED)
 
-    print(aligned_channel_mask) #This was Simeon on Taco Tuesday.
+    # print(aligned_channel_mask) #This was Simeon on Taco Tuesday.
 
     # skeletonizing the channel
     channel_skeleton = skeletonize(aligned_channel_mask)
@@ -1272,11 +1272,11 @@ if __name__=='__main__':
             push_down(sorted_push_idx)
 
 robot.go_home()
-f_name = f'evaluation_images/straight/overhead_{N}_{PICK_MODE}.png'
+f_name = f'evaluation_images/curved/overhead_{N}_{PICK_MODE}.png'
 overhead_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
 overhead_img = cv2.cvtColor(overhead_img, cv2.COLOR_BGR2RGB)
 plt.imsave(f_name, overhead_img)
-f_name = f'evaluation_images/straight/front_{N}_{PICK_MODE}.png'
+f_name = f'evaluation_images/curved/front_{N}_{PICK_MODE}.png'
 front_img = get_zed_img(front_cam, front_runtime_parameters, front_image, front_point_cloud, front_depth)
 front_img = cv2.cvtColor(front_img, cv2.COLOR_BGR2RGB)
 plt.imsave(f_name, front_img)

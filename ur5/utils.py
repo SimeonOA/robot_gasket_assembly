@@ -94,7 +94,8 @@ def get_corners2(rgb_img, channel_cnt):
     # plt.scatter(pd[0,0], pd[0,1], c='k')
     # plt.show()
 
-    return [[pa[0,1], pa[0,0]], [pb[0,1], pb[0,0]], [pc[0,1], pc[0,0]], [pd[0,1], pd[0,0]]] 
+    # had to swap order of pd and pc in the return cause that gives us the pts such that they are oriented counter clockwise
+    return [[pa[0,1], pa[0,0]], [pb[0,1], pb[0,0]], [pd[0,1], pd[0,0]], [pc[0,1], pc[0,0]]] 
 
 def get_corners(skeleton_img):
     # Convert to grayscale
@@ -176,6 +177,20 @@ def act_to_kps(act):
     x, y, dx, dy = int(x*224), int(y*224), int(dx*224), int(dy*224)
     return (x, y), (x+dx, y+dy)
 
+def get_midpt(pt1, pt2):
+    # expected format is a tuple/list of 2 elems
+    return ((pt1[0]+pt2[0])//2, (pt1[1]+pt2[1])//2)
+
+def sample_pts_btwn(pt1, pt2, n):
+    x1, y1 = pt1
+    x2, y2 = pt2
+    x_vals = np.linspace(x1,x2,n, endpoint=True)
+    y_vals = np.linspace(y1,y2,n, endpoint=True)
+    pts = np.column_stack((x_vals, y_vals))
+    print("this is pt1", pt1)
+    print("this is pt2", pt2)
+    print("and this is all of the pts", pts)
+    return pts
 
 def determine_length(object_points, endpoint_list, waypoints_list, g):
     visited = set()

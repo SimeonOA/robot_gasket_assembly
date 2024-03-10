@@ -1092,6 +1092,7 @@ if __name__=='__main__':
                 matched_pts.append(search_pts[np.argmin(dist_2)])
             return matched_pts
         
+        
         channel_skeleton_corners = match_corners_to_skeleton(corners, channel_skeleton)
         plt.title("matched skeleton pts")
         plt.imshow(channel_skeleton)
@@ -1105,8 +1106,111 @@ if __name__=='__main__':
         plt.scatter(corners[3][1], corners[3][0], c='k')
         plt.show()
 
+        # finds the closest pt on the skeleton to the actual midpoint of the two corners
+        def get_midpt_corners(skeleton, corner0, corner1):
+            real_midpt_x = (corner0[0] + corner1[0])//2
+            real_midpt_y = (corner0[1] + corner1[1])//2
+            real_midpt = np.array([real_midpt_x, real_midpt_y])
+            search_pts = np.where(skeleton > 0)
+            search_pts = np.vstack((search_pts[0], search_pts[1]))
+            # this is now an (N, 2) array
+            search_pts = search_pts.T
+
+            # match each corner to the closest pixel on the skeleton
+            # this is a (4,2)
+            dist_2 = np.sum((search_pts - real_midpt)**2, axis=1)
+            matched_midpt = search_pts[np.argmin(dist_2)]
+            return matched_midpt
         # 2: treat one of these corners as our start point
 
+        # if pick mode is uni
+        # SORTING:
+        # Option 1:
+        # pick random cable endpoint
+        # then we want to pick the 3rd farthest away channel midpoint from that endpoint 
+        # sort channel and cable from there
+        # Option 2:
+        # find midpt of longest segment and make that our channel start
+        # pick cable endpoint closest to that midpt and that's our cable start pt 
+        # need to do a check, if the corner pt that is a part of the midpoint is closer to the cable start pt AND their index is less than a half
+        # this means that they are better aligned if this is not the case then we need to swap the order of the list
+        # PICKING:
+        # pick and place cable endpoint into first part of channel
+        # pick like 16 divisions (equiv to the amt done by binary I think) across cable and channel
+        # carry this out
+        # PUSHING: uniformly push along all of these 16 pts
+        # SLIDING: 
+        # start from initial insertion point, slide to first corner
+        # go corner to corner for the 3 side segments
+        # when you get back to the same side segment as your original thing 
+        # go from that corner to the end point
+   
+        if PICK_MODE == 'uni':
+            # Option 1 implementation
+
+            # Option 2 implementation
+            # since the corners are ordered already in a clockwise manner the corner with a largest distance will be the one with the longest segment
+            dist0 = np.linalg.norm(channel_skeleton_corners[0]-channel_skeleton_corners[1])
+            dist1 = np.linalg.norm(channel_skeleton_corners[1]-channel_skeleton_corners[2])
+            dist2 = np.linalg.norm(channel_skeleton_corners[0]-channel_skeleton_corners[3])
+            max_dist = max([dist0,dist1, dist2])
+            # long_cornerX and med_cornerX are the corners on the same side of the trapezoid with one being a corner for the long side and the other being the corner for the medium side
+            if max_dist == dist0:
+                long_corner0 = channel_skeleton_corners[0]
+                long_corner1 = channel_skeleton_corners[1]
+                med_corner0 = channel_skeleton_corners[3]
+                med_corner1 = channel_skeleton_corners[2]
+            elif max_dist == dist1:
+                long_corner0 = channel_skeleton_corners[1]
+                long_corner1 = channel_skeleton_corners[2]
+                med_corner0 = channel_skeleton_corners[0]
+                med_corner1 = channel_skeleton_corners[3]
+            else:
+                long_corner0 = channel_skeleton_corners[0]
+                long_corner1 = channel_skeleton_corners[3]
+                med_corner0 = channel_skeleton_corners[1]
+                med_corner1 = channel_skeleton_corners[2]
+            
+            channel_start_pt = get_midpt_corners(channel_skeleton, long_corner0, long_corner1)
+
+            plt.title("correct long and med corner pts")
+            plt.imshow(channel_skeleton)
+            plt.scatter(long_corner0[1], long_corner0[0], c='m')
+            plt.scatter(long_corner1[1], long_corner1[0], c='y')
+            plt.scatter(med_corner0[1], med_corner0[0], c='c')
+            plt.scatter(med_corner1[1], med_corner1[0], c='k')
+            plt.scatter(channel_start_pt[1], channel_start_pt[0], c='r')
+            plt.show()
+            
+
+            rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
+            cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
+
+            # NOTE: @KARIM if stuff is acting weird here try setting `pick_closest_point` to True
+            sorted_cable_pts, sorted_channel_pts = get_sorted_pts(cable_endpoints, channel_start_pt, cable_skeleton, is_trapezoid=True)
+
+            # gets the indices of where each corner is in the sorted channel skeleton
+            # we do this so we can just do a quick channel_skeleton_corner in sorted_channel_pts
+            sorted_channel_pts = np.array(sorted_channel_pts).tolist()
+            channel_skeleton_corners = np.array(channel_skeleton_corners).tolist()
+            corner_idxs = np.array([i for i, point in enumerate(sorted_channel_pts) if point in channel_skeleton_corners])
+
+            # i 
+
+            
+
+        # if pick mode is binary
+        # SORTING: 
+        # find the midpoint of the largest line segment in the channel
+        # sort from that point
+        # end of that sorted list will essentially be the same midpoint
+        # PICKING:
+        # pick the middle of the cable and put it into that midpoint
+        # 
+        if PICK_MODE == 'binary':
+            pass
+        if PICK_MODE == 'hybrid':
+            pass
         # TODO: pick the corner that is furthest from all of the other ones to be our start one
         channel_start_pt = (channel_skeleton_corners[0][0], channel_skeleton_corners[0][1])
 
@@ -1253,9 +1357,9 @@ if __name__=='__main__':
         
         pick_place_trap_side(cable_mask_binary, cable_endpoints, channel_start_pt, camCal, side1_ratios, channel_cnt_mask)
         if PUSH_MODE == "uni" or PUSH_MODE == "hybrid":
-            sorted_push_idx = np.linspace(corner_idxs[0], corner_idxs[1], 3)
+            sorted_push_idx = sample_pts_btwn(corner_idxs[0], corner_idxs[1], 3)
         elif PUSH_MODE == "binary":
-            sorted_push_idx = np.linspace(corner_idxs[0], corner_idxs[1], 3)
+            sorted_push_idx = sample_pts_btwn(corner_idxs[0], corner_idxs[1], 3)
             sorted_push_idx = [sorted_push_idx[1], sorted_push_idx[0], sorted_push_idx[2]]
         push_down(sorted_push_idx)
         robot.go_home()
@@ -1265,9 +1369,9 @@ if __name__=='__main__':
         print("here are the ratios to be picked up for side 2,", side2_ratios)
         pick_place_trap_side(cable_mask_binary, cable_endpoints, channel_start_pt, camCal, side2_ratios, channel_cnt_mask)
         if PUSH_MODE == "uni" or PUSH_MODE == "hybrid":
-            sorted_push_idx = np.linspace(corner_idxs[1], corner_idxs[2], 3)
+            sorted_push_idx = sample_pts_btwn(corner_idxs[1], corner_idxs[2], 3)
         elif PUSH_MODE == "binary":
-            sorted_push_idx = np.linspace(corner_idxs[1], corner_idxs[2], 3)
+            sorted_push_idx = sample_pts_btwn(corner_idxs[1], corner_idxs[2], 3)
             sorted_push_idx = [sorted_push_idx[1], sorted_push_idx[0], sorted_push_idx[2]]
         push_down(sorted_push_idx)
         robot.go_home()
@@ -1279,9 +1383,9 @@ if __name__=='__main__':
         print("here are the ratios to be picked up for side 3,", side3_ratios)
         pick_place_trap_side(cable_mask_binary, cable_endpoints, channel_start_pt, camCal, side3_ratios, channel_cnt_mask)
         if PUSH_MODE == "uni" or PUSH_MODE == "hybrid":
-            sorted_push_idx = np.linspace(corner_idxs[2], corner_idxs[3], 3)
+            sorted_push_idx = sample_pts_btwn(corner_idxs[2], corner_idxs[3], 3)
         elif PUSH_MODE == "binary":
-            sorted_push_idx = np.linspace(corner_idxs[2], corner_idxs[3], 3)
+            sorted_push_idx = sample_pts_btwn(corner_idxs[2], corner_idxs[3], 3)
             sorted_push_idx = [sorted_push_idx[1], sorted_push_idx[0], sorted_push_idx[2]]
         push_down(sorted_push_idx)
         robot.go_home()
@@ -1292,9 +1396,9 @@ if __name__=='__main__':
         print("here are the ratios to be picked up for side 4,", side4_ratios)
         pick_place_trap_side(cable_mask_binary, cable_endpoints, channel_start_pt, camCal, side4_ratios, channel_cnt_mask)
         if PUSH_MODE == "uni" or PUSH_MODE == "hybrid":
-            sorted_push_idx = np.linspace(corner_idxs[3], len(sorted_channel_pts)-1, 3)
+            sorted_push_idx = sample_pts_btwn(corner_idxs[3], len(sorted_channel_pts)-1, 3)
         elif PUSH_MODE == "binary":
-            sorted_push_idx = np.linspace(corner_idxs[3], len(sorted_channel_pts)-1, 3)
+            sorted_push_idx = sample_pts_btwn(corner_idxs[3], len(sorted_channel_pts)-1, 3)
             sorted_push_idx = [sorted_push_idx[1], sorted_push_idx[0], sorted_push_idx[2]]
         push_down(sorted_push_idx)
         robot.go_home()

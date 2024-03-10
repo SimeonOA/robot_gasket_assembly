@@ -48,6 +48,7 @@ argparser.add_argument('--canny_threshold_rope', type=tuple, default=(0,255))
 argparser.add_argument('--visualize', default=False, action='store_true')
 argparser.add_argument('--push_before_slide', default=False, action='store_true')
 argparser.add_argument('--exp_num', type=int, default=0)
+argparser.add_argument('--no_front', default=True, action='store_false')
 
 def push_down(sorted_push_idx):
     robot.go_home()
@@ -804,7 +805,8 @@ if __name__=='__main__':
     side_cam_id = 20120598 # side camera
     front_eval_cam_id = 20812520 # front eval camera
     side_cam, runtime_parameters, image, point_cloud, depth = setup_zed_camera(overhead_cam_id)
-    front_cam, front_runtime_parameters, front_image, front_point_cloud, front_depth = setup_zed_camera(front_eval_cam_id)
+    if args.no_front:
+        front_cam, front_runtime_parameters, front_image, front_point_cloud, front_depth = setup_zed_camera(front_eval_cam_id)
     time.sleep(1)
     # rgb_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
     rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)

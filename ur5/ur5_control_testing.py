@@ -807,10 +807,10 @@ if __name__=='__main__':
     # # Sets up the realsense and gets us an image
     # pipeline, colorizer, align, depth_scale = setup_rs_camera()
     overhead_cam_id = 22008760 # overhead camera
-    side_cam_id = 20120598 # side camera
-    front_eval_cam_id = 20812520 # front eval camera
+    # side_cam_id = 20120598 # side camera
+    # front_eval_cam_id = 20812520 # front eval camera
     side_cam, runtime_parameters, image, point_cloud, depth = setup_zed_camera(overhead_cam_id)
-    front_cam, front_runtime_parameters, front_image, front_point_cloud, front_depth = setup_zed_camera(front_eval_cam_id)
+    # front_cam, front_runtime_parameters, front_image, front_point_cloud, front_depth = setup_zed_camera(front_eval_cam_id)
     time.sleep(1)
     # rgb_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
     rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)

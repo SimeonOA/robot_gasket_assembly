@@ -24,6 +24,7 @@ import matplotlib.pyplot as plt
 from sklearn.linear_model import RANSACRegressor
 from plantcv import plantcv as pcv
 import pyzed.sl as sl
+from scipy.spatial.distance import cdist
 from resources import CROP_REGION
 
 def setup_zed_camera(cam_id):
@@ -84,6 +85,20 @@ def get_corners2(rgb_img, channel_cnt):
     #pb = bottom left point
     #pc = top right point
     #pd = bottom right point
+
+    temp = np.array(appr).reshape(-1,2)
+    pairwise_dist = cdist(temp, temp) + np.eye(temp.shape[0])*1e6
+    nearest_neigh_loc = np.array(np.where(pairwise_dist == np.min(pairwise_dist)))
+    assert np.array_equal(nearest_neigh_loc, nearest_neigh_loc.T)
+    temp = np.array([temp[nearest_neigh_loc[0][0]], temp[nearest_neigh_loc[0][1]]])
+    cnt = channel_cnt.reshape(-1,2)
+    keep = [x for x in cnt if x[0] >= min(temp[0][0], temp[1][0]) and x[0] <= max(temp[0][0],temp[1][0]) and x[1] >= min(temp[0][1],temp[1][1]) and x[1] <= max(temp[0][1],temp[1][1])]
+    interp_idx = np.argmax(cdist(temp[:2],keep).sum(axis=0))
+    new_pt = keep[interp_idx].reshape(-1,2)
+    appr = [x for i, x in enumerate(appr) if i not in nearest_neigh_loc[0]]
+    appr.insert(nearest_neigh_loc[0][0], new_pt)
+
+    # breakpoint()
 
     pa, pb = sorted(appr[:2], key=lambda c: c[0][1])
     pc, pd = sorted(appr[2:4], key=lambda c: c[0][1])

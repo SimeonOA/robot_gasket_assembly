@@ -792,13 +792,22 @@ def pick_and_place_trap(cable_mask_binary, cable_endpoints, sorted_channel_pts, 
         # else:
 
     breakpoint()
-    curr_frac = np.abs(pair[0]-pair[1])/len(sorted_channel_pts)
-    curr_cable_start = int(prev_frac * len(sorted_cable_pts))
-    curr_cable_end = int(prev_frac + curr_frac/num_points * len(sorted_cable_pts))
-    pick_pts = np.linspace(curr_cable_start, curr_cable_end, num_points).astype(int)
-    channel_idx = place_pts[idx]
-    cable_idx = pick_pts[idx]
+    # curr_frac = np.abs(place_pts[0]-place_pts[1])/len(sorted_channel_pts)
+    # curr_frac = np.abs(place_pts[0]-place_pts[idx])/len(sorted_channel_pts)
+    prev_idx = max(0, idx-1)
+    curr_frac = np.abs(place_pts[0] - place_pts[idx])/len(sorted_channel_pts)
 
+
+    # curr_cable_start = int(prev_frac * len(sorted_cable_pts))
+    # curr_cable_end = int(prev_frac + curr_frac/num_points * len(sorted_cable_pts))
+    # pick_pts = np.linspace(curr_cable_start, curr_cable_end, num_points).astype(int)
+    # cable_idx = int(prev_frac + curr_frac) * len(sorted_cable_pts)
+    cable_idx = int((prev_frac + curr_frac) * len(sorted_cable_pts))
+    channel_idx = place_pts[idx]
+    # cable_idx = pick_pts[idx]
+
+    print("my channel idx is", channel_idx)
+    print("my cable idx is", cable_idx)
     # breakpoint()
 
 
@@ -825,9 +834,11 @@ def pick_and_place_trap(cable_mask_binary, cable_endpoints, sorted_channel_pts, 
     place_pose_swap = get_rw_pose((place_pt[1], place_pt[0]), swapped_sorted_channel_pts, 15, 0.1, camCal, is_channel_pt=True)
 
     # robot.pick_and_place(pick_pose_swap, place_pose_swap, on_channel)
-
-    return prev_frac + curr_frac/num_points
-
+    # return prev_frac + curr_frac
+    if idx == num_points - 1:
+        return prev_frac + curr_frac #np.abs(place_pts[0]-place_pts[1])/len(sorted_channel_pts)#+ curr_frac
+    else:
+        return prev_frac
 
 # NOTE: this function is busted, idk why
 def click_and_move_pts_on_img(rgb_img):
@@ -1127,11 +1138,12 @@ if __name__=='__main__':
 
             pairs = [[long_corner0_idx, long_corner1_idx], [long_corner1_idx, med_corner1_idx], [med_corner1_idx, med_corner0_idx], [med_corner0_idx, long_corner0_idx]]
             prev_frac = 0
-            for pair in pairs:
+            for pair_idx, pair in enumerate(pairs):
                 # for n in range(args.num_points):
                 # pick_and_place_trap(cable_mask_binary, cable_endpoints, sorted_channel_pts, camCal, pair, prev_frac, idx, num_points, channel_mask=None)
                 for idx in range(NUM_PTS):
-                    breakpoint()
+                    if pair_idx > 0 and idx == 0:
+                        continue
                     rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
                     cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
                     prev_frac = pick_and_place_trap(cable_mask_binary, cable_endpoints, sorted_channel_pts, camCal, pair, prev_frac, idx, NUM_PTS, channel_cnt_mask)

@@ -181,11 +181,11 @@ def sort_skeleton_pts(skeleton_img, endpoint, is_trapezoid=False):
                     continue
                 if skeleton_img[test_loc[0]][test_loc[1]].sum() > 0:
                     q.append(test_loc)
-    plt.scatter(x = [j[1] for j in sorted_pts], y=[i[0] for i in sorted_pts],c='w')
-    plt.scatter(x=[sorted_pts[-1][1], sorted_pts[0][1]], y=[sorted_pts[-1][0], sorted_pts[0][0]], c='g')
-    plt.scatter(x=[endpoint[1]], y=[endpoint[0]], c='r')
-    plt.imshow(skeleton_img)
-    plt.show()
+    # plt.scatter(x = [j[1] for j in sorted_pts], y=[i[0] for i in sorted_pts],c='w')
+    # plt.scatter(x=[sorted_pts[-1][1], sorted_pts[0][1]], y=[sorted_pts[-1][0], sorted_pts[0][0]], c='g')
+    # plt.scatter(x=[endpoint[1]], y=[endpoint[0]], c='r')
+    # plt.imshow(skeleton_img)
+    # plt.show()
     return sorted_pts
 
 def act_to_kps(act):

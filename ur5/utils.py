@@ -22,7 +22,7 @@ from random import shuffle
 import math
 import matplotlib.pyplot as plt
 from sklearn.linear_model import RANSACRegressor
-from plantcv import plantcv as pcv
+# from plantcv import plantcv as pcv
 import pyzed.sl as sl
 from scipy.spatial.distance import cdist
 from resources import CROP_REGION

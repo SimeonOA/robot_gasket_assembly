@@ -86,7 +86,8 @@ def classify_corners(channel_skeleton_corners):
     dist0 = np.linalg.norm(channel_skeleton_corners[0]-channel_skeleton_corners[1])
     dist1 = np.linalg.norm(channel_skeleton_corners[1]-channel_skeleton_corners[2])
     dist2 = np.linalg.norm(channel_skeleton_corners[0]-channel_skeleton_corners[3])
-    max_dist = max([dist0,dist1, dist2])
+    dist3 = np.linalg.norm(channel_skeleton_corners[2]-channel_skeleton_corners[3])
+    max_dist = max([dist0,dist1, dist2, dist3])
     # long_cornerX and med_cornerX are the corners on the same side of the trapezoid with one being a corner for the long side and the other being the corner for the medium side
     if max_dist == dist0:
         long_corner0 = channel_skeleton_corners[0]
@@ -98,11 +99,16 @@ def classify_corners(channel_skeleton_corners):
         long_corner1 = channel_skeleton_corners[2]
         med_corner0 = channel_skeleton_corners[0]
         med_corner1 = channel_skeleton_corners[3]
-    else:
+    elif max_dist == dist2:
         long_corner0 = channel_skeleton_corners[0]
         long_corner1 = channel_skeleton_corners[3]
         med_corner0 = channel_skeleton_corners[1]
         med_corner1 = channel_skeleton_corners[2]
+    else:
+        long_corner0 = channel_skeleton_corners[2]
+        long_corner1 = channel_skeleton_corners[3]
+        med_corner0 = channel_skeleton_corners[1]
+        med_corner1 = channel_skeleton_corners[0]
     
     return long_corner0, long_corner1, med_corner0, med_corner1
 
@@ -111,7 +117,7 @@ def classify_corners_new(channel_skeleton_corners):
     dist1 = np.linalg.norm(channel_skeleton_corners[0]-channel_skeleton_corners[2])
     dist2 = np.linalg.norm(channel_skeleton_corners[1]-channel_skeleton_corners[3])
     dist3 = np.linalg.norm(channel_skeleton_corners[2]-channel_skeleton_corners[3])
-    breakpoint()
+    # breakpoint()
     max_dist = max([dist0,dist1, dist2, dist3])
     # long_cornerX and med_cornerX are the corners on the same side of the trapezoid with one being a corner for the long side and the other being the corner for the medium side
     if max_dist == dist0:
@@ -787,12 +793,12 @@ def pick_and_place_ratio(cable_mask_binary, cable_endpoints, channel_endpoints, 
 
     pick_pt = sorted_cable_pts[cable_idx] 
     place_pt = sorted_channel_pts[channel_idx]
-    if is_trapezoid:
-        plt.title("pick and place pts")
-        plt.scatter(x=pick_pt[1], y=pick_pt[0], c='r')
-        plt.scatter(x=place_pt[1], y=place_pt[0], c='b')
-        plt.imshow(rgb_img)
-        plt.show()
+    # if is_trapezoid:
+    #     plt.title("pick and place pts")
+    #     plt.scatter(x=pick_pt[1], y=pick_pt[0], c='r')
+    #     plt.scatter(x=place_pt[1], y=place_pt[0], c='b')
+    #     plt.imshow(rgb_img)
+    #     plt.show()
 
     # needs to be swapped as this is how it is expected for the robot
     swapped_sorted_cable_pts = [(pt[1], pt[0]) for pt in sorted_cable_pts]
@@ -835,7 +841,7 @@ def pick_and_place_trap(cable_mask_binary, cable_endpoints, sorted_channel_pts, 
         place_pts = np.linspace(pair[0], len(sorted_channel_pts)-1-pair[1], num_points).astype(int)
         # else:
 
-    breakpoint()
+    # breakpoint()
     # curr_frac = np.abs(place_pts[0]-place_pts[1])/len(sorted_channel_pts)
     # curr_frac = np.abs(place_pts[0]-place_pts[idx])/len(sorted_channel_pts)
     prev_idx = max(0, idx-1)
@@ -858,11 +864,11 @@ def pick_and_place_trap(cable_mask_binary, cable_endpoints, sorted_channel_pts, 
     pick_pt = sorted_cable_pts[cable_idx] 
     place_pt = sorted_channel_pts[channel_idx]
 
-    plt.title("pick and place pts")
-    plt.scatter(x=pick_pt[1], y=pick_pt[0], c='r')
-    plt.scatter(x=place_pt[1], y=place_pt[0], c='b')
-    plt.imshow(rgb_img)
-    plt.show()
+    # plt.title("pick and place pts")
+    # plt.scatter(x=pick_pt[1], y=pick_pt[0], c='r')
+    # plt.scatter(x=place_pt[1], y=place_pt[0], c='b')
+    # plt.imshow(rgb_img)
+    # plt.show()
 
     # needs to be swapped as this is how it is expected for the robot
     swapped_sorted_cable_pts = [(pt[1], pt[0]) for pt in sorted_cable_pts]
@@ -1009,14 +1015,14 @@ def pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channe
     pick_pt = sorted_cable_pts[cable_idx] 
     place_pt = sorted_channel_pts[channel_idx]
 
-    plt.title("pick and place pts")
-    plt.scatter(x=pick_pt[1], y=pick_pt[0], c='r')
-    plt.scatter(x=place_pt[1], y=place_pt[0], c='b')
-    plt.imshow(rgb_img)
-    plt.show()
+    # plt.title("pick and place pts")
+    # plt.scatter(x=pick_pt[1], y=pick_pt[0], c='r')
+    # plt.scatter(x=place_pt[1], y=place_pt[0], c='b')
+    # plt.imshow(rgb_img)
+    # plt.show()
     # plt.scatter(x=sorted_channel_pts[][1], y=sorted_channel_pts[][0], c='b')
 
-    breakpoint()
+    # breakpoint()
 
     # needs to be swapped as this is how it is expected for the robot
     swapped_sorted_cable_pts = [(pt[1], pt[0]) for pt in sorted_cable_pts]
@@ -1151,9 +1157,9 @@ if __name__=='__main__':
     # pipeline, colorizer, align, depth_scale = setup_rs_camera()
     overhead_cam_id = 22008760 # overhead camera
     # side_cam_id = 20120598 # side camera
-    # front_eval_cam_id = 20812520 # front eval camera
+    front_eval_cam_id = 20812520 # front eval camera
     side_cam, runtime_parameters, image, point_cloud, depth = setup_zed_camera(overhead_cam_id)
-    # front_cam, front_runtime_parameters, front_image, front_point_cloud, front_depth = setup_zed_camera(front_eval_cam_id)
+    front_cam, front_runtime_parameters, front_image, front_point_cloud, front_depth = setup_zed_camera(front_eval_cam_id)
     time.sleep(1)
     # rgb_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
     rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
@@ -1239,11 +1245,11 @@ if __name__=='__main__':
     channel_skeleton, channel_length, channel_endpoints, matched_template, aligned_channel_mask, channel_cnt_mask, channel_cnt = detect_channel(rgb_img, cable_mask_binary, args)
     # breakpoint()
     skeleton_img = rgb_img + cv2.merge((channel_skeleton*255, channel_skeleton*0, channel_skeleton*0)) + cv2.merge((cable_skeleton*0, cable_skeleton*0, cable_skeleton*255)) 
-    plt.imshow(skeleton_img)
-    # plt.imshow(rgb_img)
-    # plt.imshow(channel_skeleton, alpha=0.5)
-    plt.title("channel and cable skeleton overlaid")
-    plt.show()
+    # plt.imshow(skeleton_img)
+    # # plt.imshow(rgb_img)
+    # # plt.imshow(channel_skeleton, alpha=0.5)
+    # plt.title("channel and cable skeleton overlaid")
+    # plt.show()
 
     if matched_template != "trapezoid":
         slide_start_pose, slide_end_pose = get_slide_start_end(cable_mask_binary, cable_endpoints, channel_endpoints, camCal)
@@ -1290,14 +1296,14 @@ if __name__=='__main__':
         # long_corner0, long_corner1, med_corner0, med_corner1 = classify_corners_new(channel_skeleton_corners)
         channel_start_pt = long_corner0
 
-        plt.title("correct long and med corner pts")
-        plt.imshow(channel_skeleton)
-        plt.scatter(long_corner0[1], long_corner0[0], c='m')
-        plt.scatter(long_corner1[1], long_corner1[0], c='y')
-        plt.scatter(med_corner0[1], med_corner0[0], c='c')
-        plt.scatter(med_corner1[1], med_corner1[0], c='k')
-        plt.scatter(channel_start_pt[1], channel_start_pt[0], c='r')
-        plt.show()
+        # plt.title("correct long and med corner pts")
+        # plt.imshow(channel_skeleton)
+        # plt.scatter(long_corner0[1], long_corner0[0], c='m')
+        # plt.scatter(long_corner1[1], long_corner1[0], c='y')
+        # plt.scatter(med_corner0[1], med_corner0[0], c='c')
+        # plt.scatter(med_corner1[1], med_corner1[0], c='k')
+        # plt.scatter(channel_start_pt[1], channel_start_pt[0], c='r')
+        # plt.show()
 
         rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
         cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
@@ -1885,11 +1891,11 @@ if __name__=='__main__':
                 push_down(sorted_push_idx)'''
 
 robot.go_home()
-# f_name = f'evaluation_images/trapezoid/overhead_{N}_{PICK_MODE}.png'
-# overhead_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
-# overhead_img = cv2.cvtColor(overhead_img, cv2.COLOR_BGR2RGB)
-# plt.imsave(f_name, overhead_img)
-# f_name = f'evaluation_images/trapezoid/front_{N}_{PICK_MODE}.png'
-# front_img = get_zed_img(front_cam, front_runtime_parameters, front_image, front_point_cloud, front_depth)
-# front_img = cv2.cvtColor(front_img, cv2.COLOR_BGR2RGB)
-# plt.imsave(f_name, front_img)
+f_name = f'evaluation_images/trapezoid/overhead_{N}_{PICK_MODE}.png'
+overhead_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
+overhead_img = cv2.cvtColor(overhead_img, cv2.COLOR_BGR2RGB)
+plt.imsave(f_name, overhead_img)
+f_name = f'evaluation_images/trapezoid/front_{N}_{PICK_MODE}.png'
+front_img = get_zed_img(front_cam, front_runtime_parameters, front_image, front_point_cloud, front_depth)
+front_img = cv2.cvtColor(front_img, cv2.COLOR_BGR2RGB)
+plt.imsave(f_name, front_img)

@@ -1721,7 +1721,7 @@ if __name__=='__main__':
             robot.slide_linear(slide_start_pose, slide_end_pose)
             robot.go_home()
 
-            breakpoint()
+            # breakpoint()
             print('LAST SIDE -- SHORT SIDE')
             # short side
             pair = pairs[2]

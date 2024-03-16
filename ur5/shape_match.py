@@ -438,6 +438,9 @@ def align_channel(template_mask, matched_results, img, matched_cnt, matched_temp
 
     best_template, best_idx = best_fit_template(all_masks, img, matched_cnt)
 
+    breakpoint()
+    cv2.imwrite(f"channel_mask_{2}.png", cv2.merge((best_template*255, best_template*0, best_template*0)))
+
     if matched_template == 0:
         template_mask = curved_template_mask
         if np.abs(scale_x - template_mask.shape[1]) < np.abs(scale_y - template_mask.shape[1]):

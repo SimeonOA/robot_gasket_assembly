@@ -23,6 +23,6 @@ straight_template_mask = cv2.imread('current_masks/master_straight_channel_templ
 # straight_template_mask = cv2.imread('current_masks/my_straight_mask.png')
 straight_template_mask_align = cv2.imread('current_masks/my_straight_mask2.png')
 trapezoid_template_mask = cv2.imread('current_masks/fixed_trapezoid_channel.png')
-trapezoid_template_skeleton = cv2.imread('template_masks/trapezoid_skeleton.png')
+trapezoid_template_skeleton =  cv2.imread('template_masks/trapezoid_skeleton.png')
 
 MIDPOINT_THRESHOLD = 10

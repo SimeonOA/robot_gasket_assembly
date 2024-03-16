@@ -865,10 +865,15 @@ def pick_and_place_trap(cable_mask_binary, cable_endpoints, sorted_channel_pts, 
     place_pt = sorted_channel_pts[channel_idx]
 
     # plt.title("pick and place pts")
+    # plt.scatter(x=long_corner0[1], y=long_corner0[0], c='m')
+    # plt.scatter(x=long_corner1[1], y=long_corner1[0], c='y')
+    # plt.scatter(x=med_corner0[1], y=med_corner0[0], c='c')
+    # plt.scatter(x=med_corner1[1], y=med_corner1[0], c='k')
     # plt.scatter(x=pick_pt[1], y=pick_pt[0], c='r')
     # plt.scatter(x=place_pt[1], y=place_pt[0], c='b')
     # plt.imshow(rgb_img)
     # plt.show()
+    # breakpoint()
 
     # needs to be swapped as this is how it is expected for the robot
     swapped_sorted_cable_pts = [(pt[1], pt[0]) for pt in sorted_cable_pts]
@@ -899,7 +904,7 @@ def pick_and_place_trap(cable_mask_binary, cable_endpoints, sorted_channel_pts, 
 
 
 def pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channel_pts, camCal, pair, prev_frac, idx, num_points, channel_mask=None, last=False, 
-                               descending=False, channel_idx1_used=False, channel_idx2_used=False, last_trap_side=False):
+                               descending=False, channel_idx1_used=False, channel_idx2_used=False, last_trap_side=False, hybrid=False):
     curr_cable_end = None
     cable_skeleton = skeletonize(cable_mask_binary)
     cable_length, cable_endpoints = find_length_and_endpoints(cable_skeleton)
@@ -1015,11 +1020,15 @@ def pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channe
     pick_pt = sorted_cable_pts[cable_idx] 
     place_pt = sorted_channel_pts[channel_idx]
 
-    # plt.title("pick and place pts")
+    # plt.scatter(x=long_corner0[1], y=long_corner0[0], c='m')
+    # plt.scatter(x=long_corner1[1], y=long_corner1[0], c='y')
+    # plt.scatter(x=med_corner0[1], y=med_corner0[0], c='c')
+    # plt.scatter(x=med_corner1[1], y=med_corner1[0], c='k')
     # plt.scatter(x=pick_pt[1], y=pick_pt[0], c='r')
     # plt.scatter(x=place_pt[1], y=place_pt[0], c='b')
     # plt.imshow(rgb_img)
     # plt.show()
+    # breakpoint()
     # plt.scatter(x=sorted_channel_pts[][1], y=sorted_channel_pts[][0], c='b')
 
     # breakpoint()
@@ -1035,7 +1044,10 @@ def pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channe
 
     pick_pose_swap = get_rw_pose((pick_pt[1], pick_pt[0]), swapped_sorted_cable_pts, 15, 0.1, camCal, is_channel_pt=on_channel)
     # place_pose_swap = get_rw_pose((place_pt[1], place_pt[0]), swapped_sorted_channel_pts, 20, 0.1, camCal, is_channel_pt=True)
-    place_pose_swap = get_rw_pose((place_pt[1], place_pt[0]), swapped_sorted_channel_pts[::-1], 15, 0.1, camCal, is_channel_pt=True)
+    if hybrid:
+        place_pose_swap = get_rw_pose((place_pt[1], place_pt[0]), swapped_sorted_channel_pts, 15, 0.1, camCal, is_channel_pt=True)
+    else:
+        place_pose_swap = get_rw_pose((place_pt[1], place_pt[0]), swapped_sorted_channel_pts, 15, 0.1, camCal, is_channel_pt=True)
 
     robot.pick_and_place(pick_pose_swap, place_pose_swap, on_channel)
     robot.go_home()
@@ -1146,11 +1158,11 @@ if __name__=='__main__':
     EXP_MODE = args.exp
     PUSH_BEFORE_SLIDE = args.push_before_slide
     N = args.exp_num
-    robot = GasketRobot()
-    robot.set_playload(1)
-    robot.end_force_mode()
+    # robot = GasketRobot()
+    # robot.set_playload(1)
+    # robot.end_force_mode()
     # robot.force_mode(robot.get_pose(convert=False),[1,1,1,1,1,1],[0,0,0,0,0,0],2,[1,1,1,1,1,1], 0.1)
-    robot.go_home()
+    # robot.go_home()
     
     
     # # Sets up the realsense and gets us an image
@@ -1163,7 +1175,17 @@ if __name__=='__main__':
     time.sleep(1)
     # rgb_img, scaled_depth_image, aligned_depth_frame = get_rs_image(pipeline, align, depth_scale, use_depth=False)
     rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
-
+    take_pic = False
+    if take_pic:
+        f_name = f'evaluation_images/trapezoid/overhead_{N}_{PICK_MODE}.png'
+        overhead_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
+        overhead_img = cv2.cvtColor(overhead_img, cv2.COLOR_BGR2RGB)
+        plt.imsave(f_name, overhead_img)
+        f_name = f'evaluation_images/trapezoid/front_{N}_{PICK_MODE}.png'
+        front_img = get_zed_img(front_cam, front_runtime_parameters, front_image, front_point_cloud, front_depth)
+        front_img = cv2.cvtColor(front_img, cv2.COLOR_BGR2RGB)
+        plt.imsave(f_name, front_img)
+        breakpoint()
     # Sets up the zed camera and gets us an image
     # camera = ZedCamera(20120598)
     # overhead_cam_id = 22008760 # overhead camera
@@ -1227,12 +1249,12 @@ if __name__=='__main__':
             #     start = min(x1, x2)
         return sorted_search_idx
 
-    if PICK_MODE == "binary" or PICK_MODE == 'hybrid':
-        sorted_search_idx = get_binary_search_idx()
-    elif PICK_MODE == "golden":
-        sorted_search_idx = get_golden_search_idx()
-    elif PICK_MODE == "uni":
-        sorted_search_idx = [(1/NUM_PTS)*i for i in range(NUM_PTS)]
+    # if PICK_MODE == "binary" or PICK_MODE == 'hybrid':
+    #     sorted_search_idx = get_binary_search_idx()
+    # elif PICK_MODE == "golden":
+    #     sorted_search_idx = get_golden_search_idx()
+    # elif PICK_MODE == "uni":
+    #     sorted_search_idx = [(1/NUM_PTS)*i for i in range(NUM_PTS)]
 
 
     # getting all ofNUM_BINARY the ratios for a necessary binary search
@@ -1241,10 +1263,17 @@ if __name__=='__main__':
     ### PICK AND PLACE ########
     cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
     
-    
     channel_skeleton, channel_length, channel_endpoints, matched_template, aligned_channel_mask, channel_cnt_mask, channel_cnt = detect_channel(rgb_img, cable_mask_binary, args)
-    # breakpoint()
     skeleton_img = rgb_img + cv2.merge((channel_skeleton*255, channel_skeleton*0, channel_skeleton*0)) + cv2.merge((cable_skeleton*0, cable_skeleton*0, cable_skeleton*255)) 
+    cv2.imwrite(f"cable_skeleton_{N}.png", cv2.merge((cable_skeleton*0, cable_skeleton*0, cable_skeleton*255)))
+    cv2.imwrite(f"cable_mask_{N}.png", cv2.merge((cable_mask_binary*0, cable_mask_binary*0, cable_mask_binary*255)))
+    cv2.imwrite(f"channel_skeleton_{N}.png", cv2.merge((channel_skeleton*255, channel_skeleton*0, channel_skeleton*0)))
+    channel_mask = np.zeros_like(rgb_img, dtype=np.uint8)
+    _ = cv2.drawContours(channel_mask, [channel_cnt + np.array([CROP_REGION[2], CROP_REGION[0]])],-1, [255,255,255], -1)
+    cv2.imwrite(f"channel_mask_{N}.png", channel_mask)
+    cv2.imwrite(f"rgb_img_{N}.png", rgb_img)
+    breakpoint()
+    cv2.imwrite(f"inserted_rgb_img_{N}.png", rgb_img)
     # plt.imshow(skeleton_img)
     # # plt.imshow(rgb_img)
     # # plt.imshow(channel_skeleton, alpha=0.5)
@@ -1332,7 +1361,17 @@ if __name__=='__main__':
         long_corner1_idx = [i for i,x in enumerate(sorted_channel_pts) if x[0] == long_corner1[0] and x[1] == long_corner1[1]][0]
         med_corner0_idx = [i for i,x in enumerate(sorted_channel_pts) if x[0] == med_corner0[0] and x[1] == med_corner0[1]][0]
         med_corner1_idx = [i for i,x in enumerate(sorted_channel_pts) if x[0] == med_corner1[0] and x[1] == med_corner1[1]][0]
+        
+        print("long corner 0 idx", long_corner0_idx)
+        print("long corner1 idx", long_corner1_idx)
 
+        # @ Karim
+        if np.abs(long_corner0_idx - long_corner1_idx) > len(sorted_channel_pts)/2:
+            sorted_channel_pts = sorted_channel_pts[::-1]
+            long_corner0_idx = 0 #[i for i,x in enumerate(sorted_channel_pts) if x[0] == long_corner0[0] and x[1] == long_corner0[1]][0]
+            long_corner1_idx = [i for i,x in enumerate(sorted_channel_pts) if x[0] == long_corner1[0] and x[1] == long_corner1[1]][0]
+            med_corner0_idx = [i for i,x in enumerate(sorted_channel_pts) if x[0] == med_corner0[0] and x[1] == med_corner0[1]][0]
+            med_corner1_idx = [i for i,x in enumerate(sorted_channel_pts) if x[0] == med_corner1[0] and x[1] == med_corner1[1]][0]
         pairs = [[long_corner0_idx, long_corner1_idx], [long_corner1_idx, med_corner1_idx], [med_corner1_idx, med_corner0_idx], [med_corner0_idx, long_corner0_idx]]
 
         if PICK_MODE == 'uni':
@@ -1602,33 +1641,33 @@ if __name__=='__main__':
             cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
             # pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channel_pts, camCal, pair, prev_frac, idx, num_points, channel_mask=None, last=False, descending=False)
             print('STEP 1')
-            prev_frac1, _, _ = pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channel_pts, camCal, pair, prev_frac1, 0, 4, channel_cnt_mask)
+            prev_frac1, _, _ = pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channel_pts, camCal, pair, prev_frac1, 0, 4, channel_cnt_mask, hybrid=True)
             print(prev_frac1)
             
             rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
             cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
             print('STEP 2')
-            prev_frac1, channel_idx1_used, channel_idx2_used = pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channel_pts, camCal, pair, prev_frac1, 1, 4, channel_cnt_mask)
+            prev_frac1, channel_idx1_used, channel_idx2_used = pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channel_pts, camCal, pair, prev_frac1, 1, 4, channel_cnt_mask, hybrid=True)
             print(prev_frac1)
             
             rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
             cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
             print('STEP 3')
             prev_frac2, _, _ = pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channel_pts, camCal, pair, prev_frac2, 1, 4, channel_cnt_mask, 
-                                                    descending=True, channel_idx1_used=channel_idx1_used, channel_idx2_used=channel_idx2_used)
+                                                    descending=True, channel_idx1_used=channel_idx1_used, channel_idx2_used=channel_idx2_used, hybrid=True)
             print(prev_frac2)
             
             rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
             cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
             print('STEP 4')
-            prev_frac1, channel_idx1_used, channel_idx2_used = pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channel_pts, camCal, pair, prev_frac1, 2, 4, channel_cnt_mask, last=True)
+            prev_frac1, channel_idx1_used, channel_idx2_used = pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channel_pts, camCal, pair, prev_frac1, 2, 4, channel_cnt_mask, last=True, hybrid=True)
             print(prev_frac1)
             
             rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
             cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
             print('STEP 5')
             prev_frac2, _, _ = pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channel_pts, camCal, pair, prev_frac2, 2, 4, channel_cnt_mask, 
-                                                            descending=True, channel_idx1_used=channel_idx1_used, channel_idx2_used=channel_idx2_used, last=True)
+                                                            descending=True, channel_idx1_used=channel_idx1_used, channel_idx2_used=channel_idx2_used, last=True, hybrid=True)
             print(prev_frac2)
 
             if np.abs(pair[0] - pair[1]) < len(sorted_channel_pts)//2:
@@ -1666,21 +1705,21 @@ if __name__=='__main__':
             pair2 = pairs[3]
             rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
             cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
-            prev_frac1, channel_idx1_used1, channel_idx2_used1 = pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channel_pts, camCal, pair1, prev_frac1, 0, 4, channel_cnt_mask)
+            prev_frac1, channel_idx1_used1, channel_idx2_used1 = pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channel_pts, camCal, pair1, prev_frac1, 0, 4, channel_cnt_mask, hybrid=True)
             
             rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
             cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
-            prev_frac2, channel_idx1_used2, channel_idx2_used2 = pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channel_pts, camCal, pair2, prev_frac2, 0, 4, channel_cnt_mask, descending=True)
+            prev_frac2, channel_idx1_used2, channel_idx2_used2 = pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channel_pts, camCal, pair2, prev_frac2, 0, 4, channel_cnt_mask, descending=True, hybrid=True)
             
             rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
             cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
             prev_frac1, _, _ = pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channel_pts, camCal, pair1, prev_frac1, 2, 4, channel_cnt_mask, last=True,
-                                                                                            channel_idx1_used=channel_idx1_used1, channel_idx2_used=channel_idx2_used1)
+                                                                                            channel_idx1_used=channel_idx1_used1, channel_idx2_used=channel_idx2_used1, hybrid=True)
             
             rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
             cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
             prev_frac2, _, _ = pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channel_pts, camCal, pair2, prev_frac2, 2, 4, channel_cnt_mask,
-                                                                                            descending=True, last=True, channel_idx1_used=channel_idx1_used2, channel_idx2_used=channel_idx2_used2)
+                                                                                            descending=True, last=True, channel_idx1_used=channel_idx1_used2, channel_idx2_used=channel_idx2_used2, hybrid=True)
             
             if np.abs(pair1[0] - pair1[1]) < len(sorted_channel_pts)//2:
                 corner1 = pair1[0]
@@ -1733,22 +1772,22 @@ if __name__=='__main__':
             pair = pairs[2]
             rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
             cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
-            prev_frac1, channel_idx1_used1, channel_idx2_used1  = pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channel_pts, camCal, pair, prev_frac1, 1, 4, channel_cnt_mask, last_trap_side=True)
+            prev_frac1, channel_idx1_used1, channel_idx2_used1  = pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channel_pts, camCal, pair, prev_frac1, 1, 4, channel_cnt_mask, last_trap_side=True, hybrid=True)
             
             rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
             cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
-            prev_frac2, channel_idx1_used2, channel_idx2_used2 = pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channel_pts, camCal, pair, prev_frac2, 1, 4, channel_cnt_mask, descending=True, last_trap_side=True)
+            prev_frac2, channel_idx1_used2, channel_idx2_used2 = pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channel_pts, camCal, pair, prev_frac2, 1, 4, channel_cnt_mask, descending=True, last_trap_side=True, hybrid=True)
             
             rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
             cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
             prev_frac1, _, _ = pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channel_pts, camCal, pair, prev_frac1, 0, 4, channel_cnt_mask, last_trap_side=True,
-                                                            channel_idx1_used=channel_idx1_used1, channel_idx2_used=channel_idx2_used1)
+                                                            channel_idx1_used=channel_idx1_used1, channel_idx2_used=channel_idx2_used1, hybrid=True)
             
             rgb_img = get_zed_img(side_cam, runtime_parameters, image, point_cloud, depth)
             cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
             print('CHECK ISSUE!!')
             prev_frac2, _, _ = pick_and_place_trap_binary(cable_mask_binary, cable_endpoints, sorted_channel_pts, camCal, pair, prev_frac2, 0, 4, channel_cnt_mask, descending=True, 
-                                                            last_trap_side=True, channel_idx1_used=channel_idx1_used2, channel_idx2_used=channel_idx2_used2)
+                                                            last_trap_side=True, channel_idx1_used=channel_idx1_used2, channel_idx2_used=channel_idx2_used2, hybrid=True)
             
             if np.abs(pair[0] - pair[1]) < len(sorted_channel_pts)//2:
                 corner1 = pair[0]

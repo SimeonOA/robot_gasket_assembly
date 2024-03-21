@@ -1,4 +1,5 @@
 import cv2
+import scipy
 import numpy as np
 import matplotlib.pyplot as plt
 from resources import (
@@ -114,7 +115,7 @@ def align_channel(
 
         all_masks.append(shifted_rotated_scaled_template_mask)
 
-    best_template, best_idx = best_fit_template(all_masks, img, matched_cnt)
+    best_template, best_idx, obj_mask = best_fit_template(all_masks, img, matched_cnt)
 
     if matched_template == 1:
         if thinning is None:
@@ -158,7 +159,7 @@ def align_channel(
     #         thinned_mask[y + shift_y, x + shift_x] = 255
     #         return best_template, thinned_mask
 
-    return best_template, rot
+    return best_template, rot, obj_mask
 
 
 def get_edges(
@@ -344,7 +345,7 @@ elif matched_template == "straight":
 elif matched_template == "trapezoid":
     template_mask = trapezoid_template_mask
 
-aligned_channel_mask, rot = align_channel(
+aligned_channel_mask, rot, obj_mask = align_channel(
     template_mask,
     matched_results,
     overhead_view,
@@ -373,7 +374,23 @@ print((aligned_channel_mask > 0).sum())
 aligned_channel_mask[aligned_channel_mask > 0] = 1
 # channel_thinned[channel_thinned>0] = 1
 cable_mask[cable_mask > 0] = 1
-plt.imshow(rotate_image(template_mask.astype("float32"), rot))
+rotated_img = rotate_image(obj_mask.astype("float32"), -rot)
+crop_boundary = np.where(rotated_img > 0)
+crop_boundary = np.array(
+    [
+        crop_boundary[0].min(),
+        crop_boundary[0].max(),
+        crop_boundary[1].min(),
+        crop_boundary[1].max(),
+    ]
+)
+cropped_rotated_img = rotate_image(overhead_view, -rot)[
+    crop_boundary[0] : crop_boundary[1], crop_boundary[2] : crop_boundary[3]
+]
+cv2.imwrite("program_output.png", cropped_rotated_img)
+exit()
+
+# IOU, not used in this iteration
 plt.title("comparing masks")
 plt.show()
 print(calculate_iou(aligned_channel_mask, cable_mask))

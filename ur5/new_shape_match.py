@@ -81,7 +81,13 @@ def get_cable(image):
    
     return best_cnts[-1], best_mask
 
-def get_channel(image):
+def get_channel(image, idx=-1):
+    # forcing correct channel
+    global TEMPLATE_RECTS, TEMPLATE_RATIOS, TEMPLATES
+    if idx >= 0:
+        TEMPLATES = {idx:TEMPLATES[idx]}
+        TEMPLATE_RECTS = TEMPLATE_RECTS[idx:idx+1]
+        TEMPLATE_RATIOS = [max(t)/min(t) for t in TEMPLATE_RECTS]
     crop_image = image[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
     masked_bg = get_hsv_mask(crop_image, GREEN_HSV[0], GREEN_HSV[1])
     masked_cable = get_hsv_mask(crop_image, CABLE_HSV[0], CABLE_HSV[1])
@@ -122,7 +128,10 @@ def get_channel(image):
         if min_dist < min_cnt_val and channel_density > max_channel_density:
             matched_results = [rect, center, size, theta, box_rgb]
             min_cnt_val = min_dist
-            matched_template = TEMPLATES[min_idx]
+            if idx >= 0:
+                matched_template = TEMPLATES[idx]
+            else:
+                matched_template = TEMPLATES[min_idx]
             best_cnt = cnt
             min_cnt_idx = i
             max_channel_density = channel_density

@@ -6,14 +6,14 @@ import random
 from matplotlib.path import Path
 import json
 import argparse
-import pyzed.sl as sl
+# import pyzed.sl as sl
 from skimage.morphology import skeletonize
 from skimage.transform import probabilistic_hough_line
 from PIL import Image
-from franka.sensing.utils_binary import skeletonize_img, find_length_and_endpoints, sort_skeleton_pts
-from franka.sensing.depth_sensing import parseArg, get_rgb_get_depth
+# from franka.sensing.utils_binary import skeletonize_img, find_length_and_endpoints, sort_skeleton_pts
+# from franka.sensing.depth_sensing import parseArg, get_rgb_get_depth
 from resources import CROP_REGION, curved_template_mask, straight_template_mask, trapezoid_template_mask, trapezoid_template_skeleton
-from real_sense_modules import *
+# from real_sense_modules import *
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument('--img_path', type=str, default='images/cable_detection.png')

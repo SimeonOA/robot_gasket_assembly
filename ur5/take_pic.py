@@ -2,8 +2,8 @@ from utils import *
 import cv2
 import numpy as np
 
-overhead_cam_id = 22008760 # overhead camera
-front_eval_cam_id = 20812520 # front eval camera
+overhead_cam_id = ... # overhead camera
+front_eval_cam_id = ... # front eval camera
 side_cam, runtime_parameters, image, point_cloud, depth = setup_zed_camera(overhead_cam_id)
 front_cam, front_runtime_parameters, front_image, front_point_cloud, front_depth = setup_zed_camera(front_eval_cam_id)
 

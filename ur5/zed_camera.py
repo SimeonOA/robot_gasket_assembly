@@ -3,9 +3,6 @@ from copy import deepcopy
 import cv2
 import numpy as np
 
-# from r2d2.misc.parameters import hand_camera_id
-# from r2d2.misc.time import time_ms
-
 try:
     import pyzed.sl as sl
 except ModuleNotFoundError:

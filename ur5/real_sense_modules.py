@@ -7,7 +7,6 @@ import time
 # from resources import x_crop, y_crop
 
 def setup_rs_camera(use_depth=False):
-
     config = rs.config()
     pipeline = rs.pipeline()
 
@@ -31,7 +30,6 @@ def setup_rs_camera(use_depth=False):
     return pipeline, colorizer, align, depth_scale
 
 def get_rs_image(pipeline, align, depth_scale, use_depth=False):
-
     frames = pipeline.wait_for_frames(timeout_ms=5000)
 
     # align the deph to color frame

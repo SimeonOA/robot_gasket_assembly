@@ -4,8 +4,6 @@ import matplotlib.pyplot as plt
 import cv2
 import time 
 
-# from resources import x_crop, y_crop
-
 def setup_rs_camera(use_depth=False):
     config = rs.config()
     pipeline = rs.pipeline()
@@ -50,20 +48,16 @@ def get_rs_image(pipeline, align, depth_scale, use_depth=False):
     return color_image, scaled_depth_image, aligned_depth_frame
 
 def viz_rs_images(color_image, colorizer, aligned_depth_frame, x_crop, y_crop, use_depth=False):
-
     # convert color image to BGR for OpenCV
     r, g, b = cv2.split(color_image)
     color_image = cv2.merge((b, g, r))
-
     cv2.imshow('Cropped Color Image',
                         color_image[x_crop[0]:x_crop[1] , y_crop[0]:y_crop[1]])
-
     if use_depth:
         depth_colormap = np.asanyarray(colorizer.colorize(aligned_depth_frame).get_data())
         cv2.imshow('Cropped Depth Image',
                             depth_colormap[x_crop[0]:x_crop[1] , y_crop[0]:y_crop[1]])
     cv2.waitKey()
-
     return None
 
 def main():
@@ -72,7 +66,6 @@ def main():
     time.sleep(1)
     color_image, scaled_depth_image, aligned_depth_frame = get_rs_image(
                                 pipeline, align, depth_scale, use_depth=use_depth)
-
     # Values to crop images to fit workspace
     y_crop = [0, 1280]
     x_crop = [0, 720]

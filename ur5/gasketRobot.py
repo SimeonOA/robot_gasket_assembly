@@ -125,50 +125,7 @@ class GasketRobot(UR5Robot):
     def rotate_pose90(self,pose):
         pose.rotation = R.from_euler("xyz",[0,0,np.pi/2]).as_matrix()@pose.rotation
 
-
 if __name__ == "__main__":
     ur = GasketRobot()    
     ur.set_playload(1)
     print(ur.get_joints())
-
-    # Note: linear insertion + slide
-    # ur.force_mode(ur.get_pose(convert=False),[0,1,1,0,0,0],[0,8,10,0,0,0],2,[0.05,1,0.2,0.05,0.05,0.05])
-    # ur.force_mode(ur.get_pose(convert=False),[1,1,1,1,1,1],[0,0,0,0,0,0],2,[1,1,1,1,1,1], 0.002)
-    # ur.force_mode(ur.get_pose(convert=False),[0,1,1,0,0,0],[0,7,10,0,0,0],2,[0.05,1,0.2,0.05,0.05,0.05])
-    # angles = np.array([-30, -110, -102, -10, 121, 122])
-    # ur.move_joint(angles * np.pi /180)
-    # ur.forceMode(ur.getActualTCPPose(),[0,1,1,0,0,0],[0,8,10,0,0,0],2,[0.05,1,0.2,0.05,0.05,0.05])
-    
-    # tsfm = ur.get_pose()
-    # tsfm.rotation = np.array([[1, 0, 0], [0, np.sqrt(2)/2, np.sqrt(2)/2], [0, -np.sqrt(2)/2, np.sqrt(2)/2]])@np.array([[0,-1,0],[-1,0,0],[0,0,-1]])
-    # # tsfm.translation[2] += 0.05
-    # ur.descend_to_pose(tsfm)
-    # ur.force_mode(ur.get_pose(convert=False),[0,0,1,0,0,0],[0,0,10,0,0,0],2,[0.05,1,0.2,0.05,0.05,0.05],damping=0.002)
-    # tsfm.translation[1]=0.5
-    # ur.move_pose(tsfm, interp='tcp')
-    # ur.end_force_mode()
-
-    # Recording
-    # ur = GasketRobot()    
-    # ur.set_playload(1)
-    # ur.start_teach()
-    # record_time = 20
-    # poses = []
-    # for i in tqdm(range(int(record_time/0.002))):
-    #     last_record = time.time()
-    #     poses.append([*ur.get_joints()])
-    #     while time.time()-last_record < 0.002:
-    #         pass 
-
-    # np.savetxt("roy_recording.txt", poses)
-    # ur.stop_teach()
-
-    #playback
-    # ur = GasketRobot()    
-    # ur.set_playload(1)
-    # poses = np.loadtxt("roy_recording.txt")
-    # for p in tqdm(poses):
-    #     last_record = time.time()
-    #     ur.servo_joint(p)
-    #     while time.time()-last_record < 0.002:
-    #         pass 

@@ -1,19 +1,11 @@
 import matplotlib.pyplot as plt
 import cv2
 import numpy as np
-from resources import CROP_REGION
+from resources import *
 
-# GREEN_HSV = np.array([[0, 121, 131], [179, 255, 255]])
-# CABLE_HSV = np.array([[0, 0, 156], [84, 119, 255]])
-# CROP_REGION = [64, 600, 189, 922]
+# Edit these to fit your needs
 GREEN_HSV = np.array([[35, 95, 92], [113, 255, 255]])
 CABLE_HSV = np.array([[0, 0, 255], [115, 76, 255]])
-
-
-TEMPLATES = {0:'curved', 1:'straight', 2:'trapezoid'}
-# first elem is currved width/height, second elem is straight width/height, third elem is trapezoid width/height
-TEMPLATE_RECTS = [(587.4852905273438, 168.0382080078125),(2.75, 26.5), (12, 5.75)]
-TEMPLATE_RATIOS = [max(t)/min(t) for t in TEMPLATE_RECTS]
 
 def get_contours(edges, cnt_type='external'):
     if cnt_type=='all':
@@ -66,7 +58,6 @@ def get_cable(image):
         mask = mask.sum(axis=-1)
         if i == len(best_cnts) - 1:
             best_mask = mask
-
     return best_cnts[-1], best_mask
 
 def get_channel(image):

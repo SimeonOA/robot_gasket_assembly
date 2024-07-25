@@ -14,8 +14,10 @@ import time
 
 robot = GasketRobot()
 robot.set_playload(1)
+# TODO: fill these in with your values!
 overhead_cam_id = ...
 overhead_cam = Zed(overhead_cam_id)
+# TODO: fill these in with your values!
 front_cam_id = ...
 front_cam = Zed(front_cam_id)
 time.sleep(1)
@@ -164,27 +166,27 @@ def get_slide_start_end(cable_mask_binary, cable_endpoints, channel_endpoints, c
     place_pose_stop = robot.get_rw_pose((place_pt2[1], place_pt2[0]), swapped_sorted_channel_pts, 20, True)
     return place_pose_start, place_pose_stop
 
-def push_idx(sorted_channel_pts, idx, trap=False):
+def press_idx(sorted_channel_pts, idx, trap=False):
     if idx >= len(sorted_channel_pts):
         idx = len(sorted_channel_pts) - 1
-    push_pt = sorted_channel_pts[idx]
+    press_pt = sorted_channel_pts[idx]
     # Visualization:
-    # plt.scatter(x=push_pt[1], y=push_pt[0], c='r')
-    # plt.title("Push Points")
+    # plt.scatter(x=press_pt[1], y=press_pt[0], c='r')
+    # plt.title("press Points")
     # plt.imshow(rgb_img)
 
     # needs to be swapped as this is how it is expected for the robot
     swapped_sorted_channel_pts = [(pt[1], pt[0]) for pt in sorted_channel_pts]
     if trap:
-        push_pose_swap = robot.get_rw_pose((push_pt[1], push_pt[0]), swapped_sorted_channel_pts[::-1], 15, is_channel_pt=True)
+        press_pose_swap = robot.get_rw_pose((press_pt[1], press_pt[0]), swapped_sorted_channel_pts[::-1], 15, is_channel_pt=True)
     else:
-        push_pose_swap = robot.get_rw_pose((push_pt[1], push_pt[0]), swapped_sorted_channel_pts, 15, is_channel_pt=True)
-    push_above_translation = push_pose_swap.translation
-    push_above_translation[2] += 0.02
-    push_above_pose = RigidTransform(push_pose_swap.rotation, push_above_translation)
-    robot.rotate_pose90(push_above_pose)
-    robot.push(push_pose_swap)
-    robot.move_pose(push_above_pose, interp="tcp")
+        press_pose_swap = robot.get_rw_pose((press_pt[1], press_pt[0]), swapped_sorted_channel_pts, 15, is_channel_pt=True)
+    press_above_translation = press_pose_swap.translation
+    press_above_translation[2] += 0.02
+    press_above_pose = RigidTransform(press_pose_swap.rotation, press_above_translation)
+    robot.rotate_pose90(press_above_pose)
+    robot.press(press_pose_swap)
+    robot.move_pose(press_above_pose, interp="tcp")
 
 def pick_and_place_ratio(cable_mask_binary, cable_endpoints, channel_endpoints, channel_skeleton, ratio, channel_mask=None, is_trapezoid=False, pick_closest_endpoint=False):
     cable_skeleton = skeletonize(cable_mask_binary)
@@ -349,7 +351,8 @@ class PointSelector:
                 print("Clicked at (x={}, y={}) - RGB: {}".format(x, y, self.image[y, x]))
                 rw_pt = robot.image_pt_to_rw_pt([x,	y])
                 rot = R.from_euler("xyz", [0,np.pi,0]).as_matrix()
-                # TODO remember to account for the length of the gripper 
+                # TODO: fill these in with your values!
+                # remember to account for the length of the gripper 
                 z_pos = ...
                 trans = [rw_pt[0]/1000, rw_pt[1]/1000, z_pos]
                 rw_pose = RigidTransform(rotation=rot, translation=trans)
@@ -372,7 +375,10 @@ def main():
 
     rgb_img = overhead_cam.get_zed_img()
 
-    #### Calibration Testing #########
+    #### Calibration Testing ####
+    # you can check your calibration by clicking a point on the image 
+    # and the robot's end effector should travel to it in the real world
+    # have your hand on the e-stop!
     # rgb_img = overhead_cam.get_zed_img()
     # PointSelector(rgb_img)
     # plt.imshow(rgb_img)
@@ -475,7 +481,7 @@ def main():
                     place_pts = np.linspace(pair[0], len(sorted_channel_pts)-1-pair[1], num_pts).astype(int)
                 for idx in range(num_pts):
                     channel_idx = place_pts[idx]
-                    push_idx(sorted_channel_pts, channel_idx, trap=True)
+                    press_idx(sorted_channel_pts, channel_idx, trap=True)
                 
                 place_pt1 = sorted_channel_pts[pair[0]]
                 place_pt2 = sorted_channel_pts[pair[1]]
@@ -541,7 +547,7 @@ def main():
             nums = [4, 2, 6, 1, 7, 3, 5]
             for num in nums:
                 channel_idx = corner1 + int(np.abs(corner1-corner2)*num/8)
-                push_idx(sorted_channel_pts, channel_idx, trap=True)
+                press_idx(sorted_channel_pts, channel_idx, trap=True)
             place_pt1 = sorted_channel_pts[(corner1+corner2)//2]
             place_pt2 = sorted_channel_pts[corner1]
 
@@ -596,7 +602,7 @@ def main():
             nums = [2, 1, 3]
             for num in nums:
                 channel_idx = corner1 + int(np.abs(corner1-corner2)*num/4)
-                push_idx(sorted_channel_pts, channel_idx, trap=True)
+                press_idx(sorted_channel_pts, channel_idx, trap=True)
             
             place_pt1 = sorted_channel_pts[(corner1+corner2)//2]
             place_pt2 = sorted_channel_pts[corner1]
@@ -622,7 +628,7 @@ def main():
             nums = [2, 1, 3]
             for num in nums:
                 channel_idx = corner1 + int(np.abs(corner1-corner2)*num/4)
-                push_idx(sorted_channel_pts, channel_idx, trap=True)
+                press_idx(sorted_channel_pts, channel_idx, trap=True)
             
             place_pt1 = sorted_channel_pts[(corner1+corner2)//2]
             place_pt2 = sorted_channel_pts[corner1]
@@ -670,7 +676,7 @@ def main():
             nums = [2, 1, 3]
             for num in nums:
                 channel_idx = corner1 + int(np.abs(corner1-corner2)*num/4)
-                push_idx(sorted_channel_pts, channel_idx, trap=True)
+                press_idx(sorted_channel_pts, channel_idx, trap=True)
             
             place_pt1 = sorted_channel_pts[(corner1+corner2)//2]
             place_pt2 = sorted_channel_pts[corner1]
@@ -729,7 +735,7 @@ def main():
             nums = [2, 1, 3, 0, 4]
             for num in nums:
                 channel_idx = corner1 + int(np.abs(corner1-corner2)*num/4)
-                push_idx(sorted_channel_pts, channel_idx, trap=True)
+                press_idx(sorted_channel_pts, channel_idx, trap=True)
             
             place_pt1 = sorted_channel_pts[(corner1+corner2)//2]
             place_pt2 = sorted_channel_pts[corner1]
@@ -776,7 +782,7 @@ def main():
             nums = [2, 4]
             for num in nums:
                 channel_idx = corner1 + int(np.abs(corner1-corner2)*num/4)
-                push_idx(sorted_channel_pts, channel_idx, trap=True)
+                press_idx(sorted_channel_pts, channel_idx, trap=True)
             
             place_pt1 = sorted_channel_pts[corner1]
             place_pt2 = sorted_channel_pts[corner2]
@@ -798,7 +804,7 @@ def main():
             nums = [2, 4]
             for num in nums:
                 channel_idx = corner1 + int(np.abs(corner1-corner2)*num/4)
-                push_idx(sorted_channel_pts, channel_idx, trap=True)
+                press_idx(sorted_channel_pts, channel_idx, trap=True)
             
             place_pt1 = sorted_channel_pts[corner1]
             place_pt2 = sorted_channel_pts[corner2]
@@ -841,7 +847,7 @@ def main():
             nums = [1, 3, 2]
             for num in nums:
                 channel_idx = corner1 + int(np.abs(corner1-corner2)*num/4)
-                push_idx(sorted_channel_pts, channel_idx, trap=True)
+                press_idx(sorted_channel_pts, channel_idx, trap=True)
             
             place_pt1 = sorted_channel_pts[(corner1+corner2)//2]
             place_pt2 = sorted_channel_pts[corner1]
@@ -858,24 +864,24 @@ def main():
             robot.slide_linear(slide_end_pose, slide_mid_pose)
             robot.go_home()
     
-    ### SLIDING/PUSHING ####
+    ### SLIDING/PRESSING ####
     if matched_template != "trapezoid":
         robot.go_home()
         rgb_img = overhead_cam.get_zed_img()
         cable_skeleton, cable_length, cable_endpoints, cable_mask_binary = detect_cable(rgb_img, args)
         
-        if PUSH_MODE == "binary":
-            sorted_push_idx = get_binary_search_idx()
-        elif PUSH_MODE == "uni" or PUSH_MODE=='hybrid':
-            sorted_push_idx = [(1/NUM_PTS_PUSH)*i for i in range(NUM_PTS_PUSH+1)]
+        if PRESS_MODE == "binary":
+            sorted_press_idx = get_binary_search_idx()
+        elif PRESS_MODE == "uni" or PRESS_MODE=='hybrid':
+            sorted_press_idx = [(1/NUM_PTS_PRESS)*i for i in range(NUM_PTS_PRESS+1)]
 
         if matched_template == "curved":
             if args.use_slide:
-                if PUSH_BEFORE_SLIDE:
-                    robot.push_down(sorted_push_idx)
-                if PUSH_MODE == 'uni':
+                if PRESS_BEFORE_SLIDE:
+                    robot.press_down(sorted_press_idx)
+                if PRESS_MODE == 'uni':
                     robot.slide_curved(swapped_sorted_channel_pts)
-                elif PUSH_MODE == 'binary' or PUSH_MODE == "hybrid" or PUSH_MODE == 'golden':
+                elif PRESS_MODE == 'binary' or PRESS_MODE == "hybrid" or PRESS_MODE == 'golden':
                     midpt_idx = len(swapped_sorted_channel_pts) // 2
                     mid_pose = RigidTransform()
                     mid_pose.rotation = slide_mid_pose.rotation.copy()
@@ -888,12 +894,12 @@ def main():
                     robot.move_pose(mid_pose)
                     robot.slide_curved(swapped_sorted_channel_pts[:midpt_idx][::-1])
             else:
-                robot.push_down(sorted_push_idx)
+                robot.press_down(sorted_press_idx)
         elif matched_template == "straight":
             if args.use_slide:
-                if PUSH_BEFORE_SLIDE:
-                    robot.push_down(sorted_push_idx)
-                if PUSH_MODE == 'uni':
+                if PRESS_BEFORE_SLIDE:
+                    robot.press_down(sorted_press_idx)
+                if PRESS_MODE == 'uni':
                     robot.slide_linear(slide_end_pose, slide_start_pose)
                 else:
                     robot.rotate_pose90(slide_mid_pose)
@@ -911,7 +917,7 @@ def main():
                     mid_pose.translation[2] -= 0.03
                     robot.slide_linear(mid_pose, slide_start_pose)
             else:
-                robot.push_down(sorted_push_idx)
+                robot.press_down(sorted_press_idx)
     robot.go_home()
     save_eval_imgs()
     print("Done with Experiment!")
@@ -922,8 +928,8 @@ if __name__=='__main__':
     argparser.add_argument('--exp', type=str, default='no_ends_attached')
     argparser.add_argument('--num_points', type=int, default=8)
     argparser.add_argument('--use_slide', action='store_true', default=False)
-    # options for where to push on channel: 'uni', 'binary', 'slide'
-    argparser.add_argument('--push_mode', type=str, default='uni')
+    # options for where to press on channel: 'uni', 'binary', 'slide'
+    argparser.add_argument('--press_mode', type=str, default='uni')
     # options for where to pick the cable at: 'uni', 'binary'
     argparser.add_argument('--pick_mode', type=str, default='uni')
     argparser.add_argument('--blur_radius', type=int, default=5)
@@ -933,15 +939,15 @@ if __name__=='__main__':
     argparser.add_argument('--canny_threshold_channel', type=tuple, default=(100,255))
     argparser.add_argument('--canny_threshold_rope', type=tuple, default=(0,255))
     argparser.add_argument('--visualize', default=False, action='store_true')
-    argparser.add_argument('--push_before_slide', default=False, action='store_true')
-    argparser.add_argument('--exp_num', type=int, default=0)
+    argparser.add_argument('--press_before_slide', default=False, action='store_true', help="if True, will press down")
+    argparser.add_argument('--exp_num', type=int, default=0, help="used for indicating which experiment you're on")
     args = argparser.parse_args()
-    PUSH_MODE = args.push_mode
+    PRESS_MODE = args.press_mode
     PICK_MODE = args.pick_mode
     EXP_MODE = args.exp
-    PUSH_BEFORE_SLIDE = args.push_before_slide
+    PRESS_BEFORE_SLIDE = args.press_before_slide
     N = args.exp_num
-    # how many points along the channel we want to move and push to
+    # how many points along the channel we want to move and press to
     NUM_PTS = args.num_points
-    NUM_PTS_PUSH = args.num_points
+    NUM_PTS_PRESS = args.num_points
     main()

@@ -2,7 +2,7 @@ import cv2
 
 START_IDX = 20
 END_IDX = -START_IDX - 1
-NUM_PTS_PUSH = 8
+NUM_PTS_PRESS = 8
 NUM_PTS = 4
 START_SIDE = 'left'
 TOTAL_PICK_PLACE = 5
@@ -13,6 +13,7 @@ TEMPLATE_HEIGHT = {'curved':0.0200, 'straight':0.0127, 'trapezoid':0.0200}
 TEMPLATE_RECTS = [(23.129, 6.6156774806225),(26.5, 2.75), (12, 5.75)]
 TEMPLATE_RATIOS = [max(t)/min(t) for t in TEMPLATE_RECTS]
 #             [minY, maxY, minX, maxX]
+# TODO: fill these in with your values!
 CROP_REGION = ...
 curved_template_mask = cv2.imread('template_masks/curved_channel_mask.png')
 curved_template_mask_align = cv2.imread('template_masks/curved_channel_mask_align.png')

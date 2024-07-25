@@ -1,4 +1,4 @@
-name: gasket2
+name: gasket_assembly
 channels:
   - conda-forge
   - defaults
@@ -136,4 +136,4 @@ dependencies:
     - xarm-python-sdk==1.13.8
     - zipp==3.17.0
     - zmq==0.0.0
-prefix: /home/simeonoa/miniconda3/envs/gasket2
+prefix: /home/user/miniconda3/envs/gasket_assembly

@@ -17,6 +17,7 @@ class ImageRobot():
             image_pt = np.array(image_pt).reshape((1,2))
         return np.array([self.model_x.predict(image_pt)[0][0], self.model_y.predict(image_pt)[0][0]])
 
+    # TODO: make sure to update cam_cal.csv with values for your camera and robot!
     def train_model(self, calibration_path='ur5/calibration/cam_cal.csv'):
         print('Calibrating...')
         df = pd.read_csv(calibration_path)
@@ -37,10 +38,11 @@ class ImageRobot():
 def main():
     ir = ImageRobot()
     ir.train_model()
+    # TODO: fill these in with your values!
     image_pt = ...
     rw_pt  = ir.image_pt_to_rw_pt(image_pt)
     print ('Real world point is', rw_pt)
-    # Use a point you can verify with the robot in the real world
+    # TODO: Use a point you can verify with the robot in the real world
     print ('Real world point should be: ...')
 
 if __name__ == '__main__':

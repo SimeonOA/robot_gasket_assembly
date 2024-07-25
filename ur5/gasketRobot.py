@@ -5,10 +5,15 @@ from scipy.spatial.transform import Rotation as R
 from tqdm import tqdm
 import numpy as np
 import copy
-
-class GasketRobot(UR5Robot):
+import math
+from calibration.image_robot import ImageRobot
+from utils import get_rotation, find_nth_nearest_point
+from resources import TEMPLATE_HEIGHT
+class GasketRobot(UR5Robot, ImageRobot):
     def __init__(self):
-        super().__init__(gripper=2)
+        UR5Robot.__init__(gripper=2)
+        # loads calibration model for camera to real world
+        ImageRobot.__init__()
         self.close_gripper_time = 0.5
         self.open_gripper_time = 0.5
     
@@ -38,7 +43,8 @@ class GasketRobot(UR5Robot):
         print('==========')
 
         place_overhead_translation = copy.deepcopy(place_pose.translation)
-        place_overhead_translation[2] += 0.00 if move_low else 0.03 # some offset, probably need to tune
+        # some offset, probably need to tune
+        place_overhead_translation[2] += 0.00 if move_low else 0.03
         place_overhead_pose = RigidTransform(rotation=place_pose.rotation, translation=place_overhead_translation)
         place_pre_push_pose_trans = copy.deepcopy(place_pose.translation)
         place_pre_push_pose_trans[2] += 0.03
@@ -84,7 +90,7 @@ class GasketRobot(UR5Robot):
         prev_force = np.array(self.get_current_force()[:3])
         # start moving downwards, then measure the baseline force.
         prev_force = np.linalg.norm(np.array(self.get_current_force()[:3]))
-        for i in range(9):
+        for _ in range(9):
             if convert:
                 pose.translation[2] -= 0.0001
             else:
@@ -122,8 +128,65 @@ class GasketRobot(UR5Robot):
         self.end_force_mode()
         self.stop_joint()
     
+    def slide_curved(self, swapped_sorted_channel_pts):
+        # want to be slightly elevated first before going down to slide
+        start_overhead = self.get_rw_pose(swapped_sorted_channel_pts[0], swapped_sorted_channel_pts,15, matched_template='curved', is_channel_pt=True)
+        start_overhead.translation[2] += 0.03
+        self.move_pose(start_overhead)
+
+        poses = []
+        self.close_grippers()
+        for idx, pt in enumerate(swapped_sorted_channel_pts):
+            if idx % 10 != 0:
+                continue
+            z = -1/1000
+            transformed_pose = self.get_rw_pose(pt, swapped_sorted_channel_pts,15, matched_template='curved', is_channel_pt=True)
+            transformed_pose.translation[2] = z
+            self.rotate_pose90(transformed_pose)
+            # pose = [x,y,z,rx,ry,rz]
+            poses.append(transformed_pose)
+
+        for pose in poses:
+            last_record = time.time()
+            self.move_pose(pose)
+            while time.time()-last_record < 0.002:
+                pass 
+
     def rotate_pose90(self,pose):
         pose.rotation = R.from_euler("xyz",[0,0,np.pi/2]).as_matrix()@pose.rotation
+
+    def push_down(self, sorted_push_idx, sorted_channel_pts):
+        self.go_home()
+        for idx in sorted_push_idx:
+            idx = math.floor(idx*len(sorted_channel_pts))
+            self.push_idx(sorted_channel_pts, idx)
+
+    def get_rw_pose(self, orig_pt, sorted_pixels, n, is_channel_pt, matched_template, use_depth = False):
+        behind_idx, infront_idx = find_nth_nearest_point(orig_pt, sorted_pixels, n)
+        behind_pt = sorted_pixels[behind_idx]
+        infront_pt = sorted_pixels[infront_idx]
+        # needs to be done since the point was relative to the entire view of the camera but our model is trained on points defined only in the cropped frame of the image
+        orig_pt = np.array(orig_pt) 
+        orig_rw_xy = self.image_pt_to_rw_pt(orig_pt) 
+        behind_rw_xy = self.image_pt_to_rw_pt(behind_pt)
+        infront_rw_xy = self.image_pt_to_rw_pt(infront_pt)
+        rot = get_rotation(behind_rw_xy, infront_rw_xy)
+        # converting values to meters
+        orig_rw_xy = orig_rw_xy / 1000
+
+        # want this z height to have the gripper when closed be just barely above the table
+        if not use_depth:
+            # make sure to have value in meters
+            z_pos = ... 
+            # if we want a point on the channel need to account for the height of the template
+            if is_channel_pt:
+                z_pos += TEMPLATE_HEIGHT[matched_template]
+            orig_rw = np.array([orig_rw_xy[0], orig_rw_xy[1], z_pos])
+        else:
+            raise NotImplementedError
+        # converting pose to rigid transform to use with ur5py library
+        orig_rt_pose = RigidTransform(rotation=rot, translation=orig_rw)
+        return orig_rt_pose 
 
 if __name__ == "__main__":
     ur = GasketRobot()    

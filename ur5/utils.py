@@ -6,13 +6,15 @@ from scipy.spatial.distance import cdist
 from scipy.spatial.transform import Rotation as R
 from resources import *
 
+def find_nth_nearest_point(point, sorted_points, given_n):
+    idx = sorted_points.index(point)
+    behind_idx = np.clip(idx - given_n, 0, len(sorted_points)-1)
+    infront_idx = np.clip(idx + given_n, 0, len(sorted_points)-1)
+    return behind_idx, infront_idx
+
 def get_rotation(point1, point2):
     direction = np.array(point2) - np.array(point1)
-    direction = direction / np.linalg.norm(direction) #unit vector
-
-    reference_direction = np.array([1,0])
-    cos_theta = np.dot(direction, reference_direction)
-    sin_theta = np.sqrt(1 - cos_theta**2)
+    direction = direction / np.linalg.norm(direction)
     dz = np.arctan2(direction[1], direction[0])
     euler = np.array([-np.pi, 0, dz])
     rot_matrix = R.from_euler("xyz", euler).as_matrix()

@@ -5,7 +5,6 @@ from sklearn.linear_model import LinearRegression
 from pickle import load, dump
 
 class ImageRobot():
-
     def __init__(self, model_path = ''):
         self.load_model()
 

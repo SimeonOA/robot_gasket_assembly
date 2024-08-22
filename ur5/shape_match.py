@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 from resources import *
+from utils import *
 
 # Edit these to fit your needs
 GREEN_HSV = np.array([[35, 95, 92], [113, 255, 255]])
@@ -49,7 +50,7 @@ def get_bbox(contour):
     center, size, theta = rect[0], rect[1], rect[2]
     return rect, center, size, theta
 
-def post_process_mask(binary_map):
+def post_process_mask(binary_map, viz=False):
     nlabels, labels, stats, centroids = cv2.connectedComponentsWithStats(binary_map, None, None, None, 8, cv2.CV_32S)
     #get CC_STAT_AREA component as stats[label, COLUMN] 
     areas = stats[1:,cv2.CC_STAT_AREA]
@@ -58,9 +59,9 @@ def post_process_mask(binary_map):
     for i in range(0, nlabels - 1):
         if areas[i] >= 8000:
             result[labels == i + 1] = val
-    # Visualization:
-    # plt.imshow(result, cmap='gray')
-    # plt.show()
+    if viz:
+        plt.imshow(result, cmap='gray')
+        plt.show()
     return result
 
 def get_hsv_mask(image, lower, upper):
@@ -69,20 +70,33 @@ def get_hsv_mask(image, lower, upper):
     mask = cv2.inRange(hsv, lower, upper)
     return mask
 
-def get_cable(image):
+def detect_cable(rgb_img, args):
+    cable_cnt, cable_mask_hollow  = get_cable(img = rgb_img, blur_radius=args.blur_radius, sigma=args.sigma, dilate_size=args.dilate_size_rope, 
+                  canny_threshold=args.canny_threshold_rope, viz=args.visualize)
+    cable_cnt = cable_cnt + np.array([CROP_REGION[2], CROP_REGION[0]])
+    cable_mask_binary = np.zeros(rgb_img.shape, np.uint8)
+    cv2.drawContours(cable_mask_binary, [cable_cnt], -1, (255,255,255), -1)
+    cable_mask_binary = (cable_mask_binary.sum(axis=2)/255).astype('uint8')
+    cable_mask_binary = cv2.morphologyEx(cable_mask_binary,cv2.MORPH_CLOSE,np.ones((5,5), np.uint8))
+    cable_skeleton = skeletonize(cable_mask_binary)
+    cable_length, cable_endpoints = find_length_and_endpoints(cable_skeleton)
+    assert len(cable_endpoints) == 2
+    return cable_skeleton, cable_length, cable_endpoints, cable_mask_binary
+
+def get_cable(image, viz=False):
     crop_image = image[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
     masked_cable = get_hsv_mask(crop_image, CABLE_HSV[0], CABLE_HSV[1])
-    masked_cable = post_process_mask(masked_cable)
+    masked_cable = post_process_mask(masked_cable, viz)
     
     sorted_cnts = get_contours(masked_cable, 'external')
     best_cnts = [sorted_cnts[0]]
     best_mask = None
     for i, cnt in enumerate(best_cnts):
-        # Visualization:
-        # cnt_rgb = cnt + np.array([CROP_REGION[2], CROP_REGION[0]])
-        # plt.imshow(cv2.drawContours(image.copy(), [cnt_rgb], -1, 255, 3))
-        # plt.title('check cable contour dimensions')
-        # plt.show()
+        if viz:
+            cnt_rgb = cnt + np.array([CROP_REGION[2], CROP_REGION[0]])
+            plt.imshow(cv2.drawContours(image.copy(), [cnt_rgb], -1, 255, 3))
+            plt.title('check cable contour dimensions')
+            plt.show()
         mask = np.zeros_like(crop_image, dtype=np.uint8)
         _ = cv2.drawContours(mask, [cnt], -1, 255, 3)
         mask = mask.sum(axis=-1)
@@ -90,13 +104,29 @@ def get_cable(image):
             best_mask = mask
     return best_cnts[-1], best_mask
 
-def get_channel(image):
+def detect_channel(rgb_img, viz=False):
+    matched_template, matched_results, channel_cnt = get_channel(rgb_img, viz)
+    if matched_template == 'curved':
+        template_mask = curved_template_mask_align
+    elif matched_template == 'straight':
+        template_mask = straight_template_mask_align
+    elif matched_template == 'trapezoid':
+        template_mask = trapezoid_template_mask
+    aligned_channel_mask = align_channel(template_mask, matched_results, rgb_img, channel_cnt, matched_template) 
+    aligned_channel_mask = aligned_channel_mask.astype('uint8')
+    channel_cnt_mask = np.zeros_like(rgb_img, dtype=np.uint8)
+    _ = cv2.drawContours(channel_cnt_mask, [channel_cnt + np.array([CROP_REGION[2], CROP_REGION[0]])],-1, [255,255,255], -1)
+    channel_skeleton = skeletonize(aligned_channel_mask)
+    channel_length, channel_endpoints = find_length_and_endpoints(channel_skeleton)
+    return channel_skeleton, channel_length, channel_endpoints, matched_template, aligned_channel_mask, channel_cnt_mask, channel_cnt
+
+def get_channel(image, viz=False):
     crop_image = image[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
     masked_bg = get_hsv_mask(crop_image, GREEN_HSV[0], GREEN_HSV[1])
     masked_cable = get_hsv_mask(crop_image, CABLE_HSV[0], CABLE_HSV[1])
-    masked_cable = post_process_mask(masked_cable)
+    masked_cable = post_process_mask(masked_cable, viz)
     masked_channel = cv2.bitwise_and(1-masked_bg, 1-masked_cable)
-    masked_channel = post_process_mask(masked_channel)
+    masked_channel = post_process_mask(masked_channel, viz)
     
     sorted_cnts = get_contours(masked_channel, 'external')
     matched_template = None
@@ -131,10 +161,10 @@ def get_channel(image):
             best_cnt = cnt
             min_cnt_idx = i
             max_channel_density = channel_density
-        # Visualization:
-        # plt.imshow(cv2.drawContours(image.copy(), [box_rgb], -1, 255, 3))
-        # plt.title('check channel contour dimensions in get_channel')
-        # plt.show()
+        if viz:
+            plt.imshow(cv2.drawContours(image.copy(), [box_rgb], -1, 255, 3))
+            plt.title('check channel contour dimensions in get_channel')
+            plt.show()
     return matched_template, matched_results, best_cnt
 
 def get_img_crops(img, cnts):
@@ -174,6 +204,10 @@ def get_channel_rope_cnts(crops, cnt_crop_frame, sorted_cnts, blur_radius=5, sig
 def get_cable(img = None, blur_radius=5, sigma=0, dilate_size=10, canny_threshold=(100,255), viz=False):
     rgb_img  = img.copy()
     crop_img = rgb_img[CROP_REGION[0]:CROP_REGION[1], CROP_REGION[2]:CROP_REGION[3]]
+    if viz:
+        plt.imshow(crop_img)
+        plt.title("cropped image")
+        plt.show()
     orig_gray_img = cv.cvtColor(crop_img, cv.COLOR_RGB2GRAY)
     gray_img = cv.threshold(orig_gray_img.copy(), 240, 255, cv.THRESH_BINARY_INV)[1]
     
@@ -182,12 +216,12 @@ def get_cable(img = None, blur_radius=5, sigma=0, dilate_size=10, canny_threshol
     best_cnts = [sorted_cnts[0]]
     best_mask = None
     for i, cnt in enumerate(best_cnts):
-        # Visualization:
-        # cnt_rgb = cnt + np.array([CROP_REGION[2], CROP_REGION[0]])
-        # plt.imshow(cv.drawContours(rgb_img.copy(), [cnt_rgb], -1, 255, 3))
-        # plt.title('check cable contour dimensions')
-        # plt.show()
-        print(get_bbox(cnt))
+        if viz:
+            cnt_rgb = cnt + np.array([CROP_REGION[2], CROP_REGION[0]])
+            plt.imshow(cv.drawContours(rgb_img.copy(), [cnt_rgb], -1, 255, 3))
+            plt.title('check cable contour dimensions')
+            plt.show()
+            print(get_bbox(cnt))
         mask = np.zeros_like(crop_img, dtype=np.uint8)
         _ = cv.drawContours(mask, [cnt], -1, 255, 3)
         mask = cv.dilate(mask, np.ones((dilate_size,dilate_size), np.uint8), iterations=1)
@@ -302,7 +336,7 @@ def best_fit_template(all_masks, img, matched_cnt):
             best_idx = idx
     return (best_mask, best_idx)
 
-def align_channel(template_mask, matched_results, img, matched_cnt, matched_template):
+def align_channel(template_mask, matched_results, img, matched_cnt, matched_template, viz=False):
     for k,v in TEMPLATES.items():
         if v == matched_template:
            matched_template = k
@@ -388,12 +422,12 @@ def align_channel(template_mask, matched_results, img, matched_cnt, matched_temp
         mask[y + shift_y, x + shift_x] = 255
         shifted_rotated_scaled_template_mask = mask
         best_template = shifted_rotated_scaled_template_mask
-    # Visualization:
-    # plt.imshow(best_template)
-    # plt.imshow(img, alpha=0.5)
-    # plt.scatter(center[0]+CROP_REGION[2], center[1]+CROP_REGION[0], c='r')
-    # plt.title('Best template')
-    # plt.show()
+    if viz:
+        plt.imshow(best_template)
+        plt.imshow(img, alpha=0.5)
+        plt.scatter(center[0]+CROP_REGION[2], center[1]+CROP_REGION[0], c='r')
+        plt.title('Best template')
+        plt.show()
     return best_template
 
 def get_true_center_curved_bbox(curved_bbox, gray_img):

@@ -21,9 +21,13 @@ class ImageRobot():
     def train_model(self, calibration_path='ur5/calibration/cam_cal.csv'):
         print('Calibrating...')
         df = pd.read_csv(calibration_path)
+        # im_x are the x-values of the black points in ur5_workspace_calibration_example.png
         im_x = df['im_x'].values.reshape(-1, 1)
+        # im_x are the x-values of the black points in ur5_workspace_calibration_example.png
         real_x = df['real_x'].values.reshape(-1, 1)
+        # im_x are the x-values of the black points in ur5_workspace_calibration_example.png
         im_y = df['im_y'].values.reshape(-1, 1)
+        # im_x are the x-values of the black points in ur5_workspace_calibration_example.png
         real_y = df['real_y'].values.reshape(-1, 1)
 
         im_coords = np.column_stack((im_x, im_y))

@@ -5,6 +5,37 @@ from skimage.morphology import skeletonize
 from scipy.spatial.distance import cdist
 from scipy.spatial.transform import Rotation as R
 from resources import *
+from autolab_core import RigidTransform
+
+def get_sorted_cable_pts(cable_endpoints, cable_skeleton, is_trap=False):
+    cable_endpoint_in = cable_endpoints[0]
+    sorted_cable_pts = sort_skeleton_pts(cable_skeleton, cable_endpoint_in)
+    # trapezoid skeleton is smooth, don't want to delete parts of it. 
+    if not is_trap:
+        sorted_cable_pts = sorted_cable_pts[START_IDX:END_IDX]
+    return sorted_cable_pts
+    
+def press_idx(robot, sorted_channel_pts, idx, trap=False, viz=False, rgb_img=None):
+    if idx >= len(sorted_channel_pts):
+        idx = len(sorted_channel_pts) - 1
+    press_pt = sorted_channel_pts[idx]
+    if viz:
+        plt.scatter(x=press_pt[1], y=press_pt[0], c='r')
+        plt.title("Press Point")
+        plt.imshow(rgb_img)
+
+    # needs to be swapped as this is how it is expected for the robot
+    swapped_sorted_channel_pts = [(pt[1], pt[0]) for pt in sorted_channel_pts]
+    if trap:
+        press_pose_swap = robot.get_rw_pose((press_pt[1], press_pt[0]), swapped_sorted_channel_pts[::-1], 15, is_channel_pt=True)
+    else:
+        press_pose_swap = robot.get_rw_pose((press_pt[1], press_pt[0]), swapped_sorted_channel_pts, 15, is_channel_pt=True)
+    press_above_translation = press_pose_swap.translation
+    press_above_translation[2] += 0.02
+    press_above_pose = RigidTransform(press_pose_swap.rotation, press_above_translation)
+    robot.rotate_pose90(press_above_pose)
+    robot.press(press_pose_swap)
+    robot.move_pose(press_above_pose, interp="tcp")
 
 def find_nth_nearest_point(point, sorted_points, given_n):
     idx = sorted_points.index(point)
